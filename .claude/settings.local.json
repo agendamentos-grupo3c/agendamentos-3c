@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/Alana.gaspar/**)",
+      "Bash(command -v nvm)",
+      "Read(//usr/local/bin/**)",
+      "Read(//usr/bin/**)",
+      "Read(//opt/**)",
+      "Bash(snap list *)",
+      "Bash(apt list *)",
+      "Read(//usr/lib/**)",
+      "Bash(curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh)",
+      "Bash(bash)",
+      "WebFetch(domain:neon.com)",
+      "Bash(curl -s -D - -o /dev/null http://localhost:3010/login)",
+      "Bash(rm -rf frontend-preview)",
+      "Bash(cp -r frontend frontend-preview)",
+      "Bash(rm -rf frontend-preview/.next)"
+    ]
+  }
+}
