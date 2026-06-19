@@ -1,7 +1,16 @@
 // Client HTTP tipado para a API (backend). Sempre com credentials para enviar o
 // cookie de sessão httpOnly. Nenhum segredo aqui — só a URL pública da API.
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3333';
+// Normaliza a URL da API: garante esquema absoluto e remove barra final. Sem o
+// `https://`, o navegador trata "host:porta" como protocolo desconhecido e abre
+// o seletor de apps do SO em vez de navegar até o backend (ex.: no login Google).
+function normalizeBaseUrl(raw: string | undefined): string {
+  const trimmed = (raw ?? 'http://localhost:3333').trim().replace(/\/+$/, '');
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed.replace(/^\/+/, '')}`;
+}
+
+const BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
 
 export type Role = 'integrator' | 'seller';
 
