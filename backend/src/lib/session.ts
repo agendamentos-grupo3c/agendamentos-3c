@@ -33,7 +33,10 @@ function sessionCookieOptions() {
   return {
     httpOnly: true,
     secure: env.isProduction,
-    sameSite: 'lax' as const,
+    // Produção: front e API em domínios diferentes (Vercel/Render) → o cookie
+    // precisa de SameSite=None para ser enviado nas chamadas cross-site.
+    // Em dev (same-site localhost) mantemos Lax. CSRF protege as escritas.
+    sameSite: (env.isProduction ? 'none' : 'lax') as 'none' | 'lax',
     path: '/',
     maxAge: AUTH.SESSION_TTL_SECONDS,
   };
