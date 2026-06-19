@@ -129,7 +129,7 @@ Este sistema lida com dados de clientes (PII) e credenciais de integrações. **
 ### 6.2 Autenticação e sessão
 - Login via **Google OAuth/OIDC**. A verificação que importa acontece **no servidor**: validar a assinatura do ID token (JWKS do Google), `iss`, `aud`, `exp`, **`email_verified === true`** e **`hd === "grupo-3c.com"`**.
 - **Não confie no `hd` enviado pelo cliente** — valide sempre o token no backend.
-- Além do domínio, mantenha uma **allowlist** server-side de e-mails autorizados (resolve offboarding e acessos que deveriam ser revogados mesmo com conta de domínio válida).
+- Acesso liberado para **qualquer e-mail do domínio** `grupo-3c.com` (alta rotatividade de vendedores). A **allowlist** server-side é **opcional**: se `ALLOWLIST_EMAILS` for preenchida, restringe a esses e-mails (útil para travar acessos pontuais); se vazia, vale o domínio.
 - Sessão em **cookie `httpOnly`, `Secure`, `SameSite=Lax/Strict`**, com JWT de curta duração ou sessão server-side. **Nunca** guarde token de sessão em `localStorage`.
 - **Toda** rota protegida revalida a sessão **no backend**. O front-end não é fonte de verdade de autorização.
 - **Papéis:** *vendedor* (cria agendamentos e **visualiza** o resultado, somente leitura) e *integrador* (registra o desfecho: status, orçamento e prazo). As rotas de desfecho exigem papel **integrador**, validado no backend (vendedor → 403). Integradores são os **donos das agendas** (`CALENDAR_ALANA_ID`/`CALENDAR_GUILHERME_ID`); cada um vê apenas os cards da sua coluna.

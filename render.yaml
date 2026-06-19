@@ -40,13 +40,4 @@ services:
         sync: false
       - key: CALENDAR_GUILHERME_ID
         sync: false
-      - key: SLACK_BOT_TOKEN
-        sync: false
-      - key: SLACK_CHANNEL_IDS
-        sync: false
-      - key: DIZPAROS_API_KEY
-        sync: false
-      - key: CLICKUP_API_TOKEN
-        sync: false
-      - key: CLICKUP_LIST_ID
-        sync: false
+      # Slack/WhatsApp/ClickUp são tratados pelo fluxo n8n da 3C (delegado).
