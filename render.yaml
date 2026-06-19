@@ -1,0 +1,52 @@
+# Blueprint de deploy do backend na Render.
+# O frontend é implantado na Vercel (root directory = frontend).
+services:
+  - type: web
+    name: 3c-integracoes-api
+    runtime: node
+    rootDir: backend
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    # Roda as migrations antes de cada deploy (requer plano pago; caso contrário,
+    # rode `npm run migrate` manualmente).
+    preDeployCommand: npm run migrate
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Segredos: defina no painel da Render (sync:false = não versionado).
+      - key: SESSION_SECRET
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_CALENDAR_REFRESH_TOKEN
+        sync: false
+      - key: ALLOWED_DOMAIN
+        value: grupo-3c.com
+      - key: ALLOWLIST_EMAILS
+        sync: false
+      - key: CALENDAR_ALANA_ID
+        sync: false
+      - key: CALENDAR_GUILHERME_ID
+        sync: false
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_CHANNEL_IDS
+        sync: false
+      - key: DIZPAROS_API_KEY
+        sync: false
+      - key: CLICKUP_API_TOKEN
+        sync: false
+      - key: CLICKUP_LIST_ID
+        sync: false
