@@ -62,8 +62,15 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(cookie, { secret: env.SESSION_SECRET });
 
   // CSRF double-submit: segredo em cookie assinado; token reenviado em header.
+  // Cookie SameSite=None em produção (cross-domain front/API); Lax em dev.
   await app.register(csrfProtection, {
-    cookieOpts: { httpOnly: true, secure: env.isProduction, sameSite: 'lax', path: '/', signed: true },
+    cookieOpts: {
+      httpOnly: true,
+      secure: env.isProduction,
+      sameSite: (env.isProduction ? 'none' : 'lax') as 'none' | 'lax',
+      path: '/',
+      signed: true,
+    },
     getToken: (req) => req.headers['x-csrf-token'] as string | undefined,
   });
 
