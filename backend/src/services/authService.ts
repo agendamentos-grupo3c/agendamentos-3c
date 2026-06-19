@@ -1,7 +1,7 @@
 import { env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
 import type { GoogleIdClaims } from '../integrations/googleOidc.js';
-import { isEmailAllowed } from '../lib/allowlist.js';
+import { allowlistConfigured, isEmailAllowed } from '../lib/allowlist.js';
 import type { SessionUser } from '../lib/session.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 
@@ -23,8 +23,9 @@ export async function completeLogin(claims: GoogleIdClaims): Promise<SessionUser
   if (claims.hd !== env.ALLOWED_DOMAIN) {
     throw denied('AUTH_DOMAIN_FORBIDDEN');
   }
-  if (!isEmailAllowed(claims.email)) {
-    // Mensagem genérica: não revelar quem está (ou não) na allowlist.
+  // Allowlist é OPCIONAL: por padrão (vazia) qualquer e-mail do domínio acessa.
+  // Se ALLOWLIST_EMAILS for preenchida, passa a restringir a esses e-mails.
+  if (allowlistConfigured() && !isEmailAllowed(claims.email)) {
     throw denied('AUTH_NOT_ALLOWLISTED');
   }
 
