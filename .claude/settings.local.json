@@ -15,7 +15,9 @@
       "Bash(curl -s -D - -o /dev/null http://localhost:3010/login)",
       "Bash(rm -rf frontend-preview)",
       "Bash(cp -r frontend frontend-preview)",
-      "Bash(rm -rf frontend-preview/.next)"
+      "Bash(rm -rf frontend-preview/.next)",
+      "Bash(git commit -q -m 'feat\\(clickup\\): integração via n8n \\(escrita no ClickUp\\); tipo de demanda; orçamento numérico *)",
+      "Bash(git push *)"
     ]
   }
 }
