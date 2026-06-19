@@ -38,9 +38,7 @@ const schema = z.object({
   GOOGLE_CALENDAR_REFRESH_TOKEN: z.string().optional(),
   CALENDAR_ALANA_ID: z.string().optional(),
   CALENDAR_GUILHERME_ID: z.string().optional(),
-  SLACK_BOT_TOKEN: z.string().optional(),
-  SLACK_CHANNEL_IDS: z.string().optional(),
-  DIZPAROS_API_KEY: z.string().optional(),
+  // ClickUp (Slack/WhatsApp são tratados pelo n8n reagindo à lista).
   CLICKUP_API_TOKEN: z.string().optional(),
   CLICKUP_LIST_ID: z.string().optional(),
 });

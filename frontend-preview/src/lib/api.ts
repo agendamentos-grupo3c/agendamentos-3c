@@ -28,6 +28,7 @@ export interface SubmitPayload {
   crmName: string;
   clientEmail: string;
   phone: string;
+  demandType: 'automacao' | 'integracao';
   slotToken: string;
 }
 
@@ -52,7 +53,7 @@ export interface CardSummary {
 
 export interface BudgetFields {
   requiredIntegration: string;
-  budget: string;
+  budget: number;
   productionDeadline: string;
 }
 
@@ -204,7 +205,7 @@ export const api = {
     const card = findCard(id);
     card.status = 'orcamento_enviado';
     card.requiredIntegration = fields.requiredIntegration;
-    card.budget = fields.budget;
+    card.budget = String(fields.budget);
     card.productionDeadline = fields.productionDeadline;
     return delay({ card: { ...card }, pending: [] });
   },

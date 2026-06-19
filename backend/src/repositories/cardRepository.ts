@@ -1,4 +1,4 @@
-import type { CardStatus } from '../config/constants.js';
+import type { CardStatus, DemandType } from '../config/constants.js';
 import { query } from '../lib/db.js';
 import type { Collaborator } from '../lib/schedulingPolicy.js';
 
@@ -19,6 +19,7 @@ export interface Card {
   requiredIntegration: string | null;
   budget: string | null;
   productionDeadline: string | null;
+  demandType: DemandType | null;
   idempotencyKey: string | null;
   slackNotifiedAt: string | null;
   whatsappSentAt: string | null;
@@ -43,6 +44,7 @@ const COLUMNS = `
   required_integration AS "requiredIntegration",
   budget AS "budget",
   production_deadline AS "productionDeadline",
+  demand_type AS "demandType",
   idempotency_key AS "idempotencyKey",
   slack_notified_at AS "slackNotifiedAt",
   whatsapp_sent_at AS "whatsappSentAt",
@@ -60,6 +62,7 @@ export interface InsertCardInput {
   sellerEmail: string;
   assignedTo: Collaborator;
   scheduledAt: string;
+  demandType: DemandType;
   idempotencyKey: string;
 }
 
@@ -79,8 +82,9 @@ export async function insertCard(input: InsertCardInput): Promise<Card> {
   const { rows } = await query<Card>(
     `INSERT INTO cards
        (company_name, client_name, integration_summary, crm_name, client_email,
-        client_phone_e164, seller_email, assigned_to, scheduled_at, idempotency_key, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'kickoff')
+        client_phone_e164, seller_email, assigned_to, scheduled_at, demand_type,
+        idempotency_key, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'kickoff')
      RETURNING ${COLUMNS}`,
     [
       input.companyName,
@@ -92,6 +96,7 @@ export async function insertCard(input: InsertCardInput): Promise<Card> {
       input.sellerEmail,
       input.assignedTo,
       input.scheduledAt,
+      input.demandType,
       input.idempotencyKey,
     ],
   );
@@ -175,7 +180,7 @@ export async function transitionStatus(
 
 export async function saveBudgetAndSend(
   id: string,
-  fields: { requiredIntegration: string; budget: string; productionDeadline: string },
+  fields: { requiredIntegration: string; budget: number; productionDeadline: string },
 ): Promise<Card | null> {
   const { rows } = await query<Card>(
     `UPDATE cards
@@ -183,7 +188,8 @@ export async function saveBudgetAndSend(
            status = 'orcamento_enviado'
      WHERE id = $1 AND status = 'compareceu'
      RETURNING ${COLUMNS}`,
-    [id, fields.requiredIntegration, fields.budget, fields.productionDeadline],
+    // Coluna budget é text; guardamos o número canônico como string.
+    [id, fields.requiredIntegration, String(fields.budget), fields.productionDeadline],
   );
   return rows[0] ?? null;
 }

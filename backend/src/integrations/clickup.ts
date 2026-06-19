@@ -1,3 +1,4 @@
+import { CLICKUP, type DemandType } from '../config/constants.js';
 import { env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
 
@@ -16,43 +17,69 @@ function getConfig(): { token: string; listId: string } {
   return { token: CLICKUP_API_TOKEN, listId: CLICKUP_LIST_ID };
 }
 
-export async function createTask(input: {
-  name: string;
-  description: string;
-  status: string;
-}): Promise<{ taskId: string }> {
-  const { token, listId } = getConfig();
-  const res = await fetch(`${API}/list/${encodeURIComponent(listId)}/task`, {
-    method: 'POST',
-    headers: { Authorization: token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: input.name, description: input.description, status: input.status }),
+async function request(path: string, init: RequestInit, code: string): Promise<unknown> {
+  const { token } = getConfig();
+  const res = await fetch(`${API}${path}`, {
+    ...init,
+    headers: { Authorization: token, 'Content-Type': 'application/json', ...init.headers },
   });
   if (!res.ok) {
     throw new AppError({
-      code: 'CLICKUP_CREATE_FAILED',
+      code,
       statusCode: 502,
       publicMessage: 'Sincronização indisponível.',
-      message: `ClickUp task create respondeu ${res.status}`,
+      message: `ClickUp ${path} respondeu ${res.status}`,
     });
   }
-  const json = (await res.json()) as { id: string };
+  return res.json();
+}
+
+export interface KickoffTaskInput {
+  companyName: string;
+  clientName: string;
+  phoneE164: string;
+  description: string;
+  requesterEmail: string;
+  demandType: DemandType;
+}
+
+// Cria a task no funil (status "kickoff") com os custom fields. O fluxo n8n da
+// 3C reage à lista e dispara Slack/WhatsApp.
+export async function createKickoffTask(input: KickoffTaskInput): Promise<{ taskId: string }> {
+  const { listId } = getConfig();
+  const body = {
+    name: `Kickoff - ${input.companyName} (${input.clientName})`,
+    status: 'kickoff',
+    custom_fields: [
+      { id: CLICKUP.FIELDS.companyName, value: input.companyName },
+      { id: CLICKUP.FIELDS.clientName, value: input.clientName },
+      { id: CLICKUP.FIELDS.phone, value: input.phoneE164 },
+      { id: CLICKUP.FIELDS.description, value: input.description },
+      { id: CLICKUP.FIELDS.requesterEmail, value: input.requesterEmail },
+      { id: CLICKUP.FIELDS.demandType, value: CLICKUP.DEMAND_TYPE_OPTION[input.demandType] },
+    ],
+  };
+  const json = (await request(
+    `/list/${encodeURIComponent(listId)}/task`,
+    { method: 'POST', body: JSON.stringify(body) },
+    'CLICKUP_CREATE_FAILED',
+  )) as { id: string };
   return { taskId: json.id };
 }
 
-// Atualização de status por etapa (seção 7.7) — usado também no Passo 9.
 export async function updateTaskStatus(taskId: string, status: string): Promise<void> {
-  const { token } = getConfig();
-  const res = await fetch(`${API}/task/${encodeURIComponent(taskId)}`, {
-    method: 'PUT',
-    headers: { Authorization: token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
-  });
-  if (!res.ok) {
-    throw new AppError({
-      code: 'CLICKUP_UPDATE_FAILED',
-      statusCode: 502,
-      publicMessage: 'Sincronização indisponível.',
-      message: `ClickUp task update respondeu ${res.status}`,
-    });
-  }
+  await request(
+    `/task/${encodeURIComponent(taskId)}`,
+    { method: 'PUT', body: JSON.stringify({ status }) },
+    'CLICKUP_UPDATE_FAILED',
+  );
+}
+
+// Preenche o campo monetário "Valor do orçamento" (currency espera número).
+export async function setBudgetField(taskId: string, value: number): Promise<void> {
+  await request(
+    `/task/${encodeURIComponent(taskId)}/field/${CLICKUP.FIELDS.budget}`,
+    { method: 'POST', body: JSON.stringify({ value }) },
+    'CLICKUP_FIELD_FAILED',
+  );
 }

@@ -9,7 +9,7 @@ export const budgetSchema = z.object({
     .trim()
     .min(1, 'Informe a integração necessária.')
     .max(FORM.SUMMARY_MAX),
-  budget: z.string().trim().min(1, 'Informe o orçamento.').max(FORM.TEXT_MAX),
+  budget: z.coerce.number().positive('Informe um valor de orçamento válido.'),
   productionDeadline: z.string().trim().min(1, 'Informe o prazo de produção.').max(FORM.TEXT_MAX),
 });
 

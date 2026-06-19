@@ -30,6 +30,7 @@ export interface SubmitPayload {
   crmName: string;
   clientEmail: string;
   phone: string;
+  demandType: 'automacao' | 'integracao';
   slotToken: string;
 }
 
@@ -54,7 +55,7 @@ export interface CardSummary {
 
 export interface BudgetFields {
   requiredIntegration: string;
-  budget: string;
+  budget: number;
   productionDeadline: string;
 }
 

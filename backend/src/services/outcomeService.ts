@@ -1,10 +1,8 @@
-import { SCHEDULING, STATUS_LABELS } from '../config/constants.js';
+import { CLICKUP_STATUS } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
-import { updateTaskStatus } from '../integrations/clickup.js';
-import { sendToChannels } from '../integrations/slack.js';
+import { setBudgetField, updateTaskStatus } from '../integrations/clickup.js';
 import { canTransition } from '../lib/cardStateMachine.js';
 import { logger } from '../lib/logger.js';
-import type { Collaborator } from '../lib/schedulingPolicy.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
   type Card,
@@ -14,7 +12,7 @@ import {
 } from '../repositories/cardRepository.js';
 import type { BudgetInput } from '../schemas/outcome.js';
 
-type OutcomeChannel = 'slack' | 'clickup';
+type OutcomeChannel = 'clickup';
 
 export interface OutcomeResult {
   card: Card;
@@ -33,42 +31,18 @@ function invalidTransition(): AppError {
   });
 }
 
-const whenFmt = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: SCHEDULING.TIMEZONE,
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
-
-function collaboratorLabel(c: Collaborator): string {
-  return c === 'alana' ? 'Alana Gaspar' : 'Guilherme Ribeiro';
-}
-
-function whenLabel(card: Card): string {
-  return card.scheduledAt ? whenFmt.format(new Date(card.scheduledAt)) : '';
-}
-
-// Reflete a mudança de status no Slack e no ClickUp (seção 7.7). Best-effort:
-// falha de notificação não desfaz a transição já persistida; vira pendência.
-async function syncOutcome(card: Card, slackText: string): Promise<OutcomeChannel[]> {
-  const pending: OutcomeChannel[] = [];
-
+// Reflete a mudança de status no ClickUp (o n8n reage e dispara Slack/WhatsApp).
+// Best-effort: falha não desfaz a transição já persistida; vira pendência.
+async function syncClickupStatus(card: Card): Promise<OutcomeChannel[]> {
+  const status = CLICKUP_STATUS[card.status];
+  if (!card.clickupTaskId || !status) return [];
   try {
-    await sendToChannels(slackText);
+    await updateTaskStatus(card.clickupTaskId, status);
+    return [];
   } catch (err) {
-    logger.warn({ err, cardId: card.id }, 'slack outcome pending');
-    pending.push('slack');
+    logger.warn({ err, cardId: card.id }, 'clickup outcome pending');
+    return ['clickup'];
   }
-
-  if (card.clickupTaskId) {
-    try {
-      await updateTaskStatus(card.clickupTaskId, STATUS_LABELS[card.status]);
-    } catch (err) {
-      logger.warn({ err, cardId: card.id }, 'clickup outcome pending');
-      pending.push('clickup');
-    }
-  }
-
-  return pending;
 }
 
 export async function markAttended(cardId: string, actorEmail: string): Promise<OutcomeResult> {
@@ -87,8 +61,7 @@ export async function markAttended(cardId: string, actorEmail: string): Promise<
     toStatus: 'compareceu',
   });
 
-  // "compareceu" é estado interno: sem Slack/ClickUp (seção 7.7 sincroniza
-  // kickoff, no-show e orçamento enviado).
+  // "compareceu" é estado interno: sem reflexo no ClickUp.
   return { card: updated, pending: [] };
 }
 
@@ -108,16 +81,7 @@ export async function markNoShow(cardId: string, actorEmail: string): Promise<Ou
     toStatus: 'no_show',
   });
 
-  const text = [
-    `*No-show* — status: ${STATUS_LABELS.no_show}`,
-    `*Empresa:* ${updated.companyName}`,
-    `*Cliente:* ${updated.clientName}`,
-    `*Responsável:* ${collaboratorLabel(updated.assignedTo)}`,
-    `*Quando:* ${whenLabel(updated)}`,
-    `*Vendedor:* ${updated.sellerEmail}`,
-  ].join('\n');
-
-  return { card: updated, pending: await syncOutcome(updated, text) };
+  return { card: updated, pending: await syncClickupStatus(updated) };
 }
 
 export async function sendBudget(
@@ -140,16 +104,17 @@ export async function sendBudget(
     toStatus: 'orcamento_enviado',
   });
 
-  const text = [
-    `*Orçamento enviado* — status: ${STATUS_LABELS.orcamento_enviado}`,
-    `*Empresa:* ${updated.companyName}`,
-    `*Cliente:* ${updated.clientName}`,
-    `*Integração:* ${updated.requiredIntegration ?? ''}`,
-    `*Orçamento:* ${updated.budget ?? ''}`,
-    `*Prazo de produção:* ${updated.productionDeadline ?? ''}`,
-    `*Responsável:* ${collaboratorLabel(updated.assignedTo)}`,
-    `*Vendedor:* ${updated.sellerEmail}`,
-  ].join('\n');
+  // Atualiza status + valor monetário no ClickUp (n8n dispara o aviso).
+  const pending: OutcomeChannel[] = [];
+  if (updated.clickupTaskId) {
+    try {
+      await updateTaskStatus(updated.clickupTaskId, CLICKUP_STATUS.orcamento_enviado!);
+      await setBudgetField(updated.clickupTaskId, fields.budget);
+    } catch (err) {
+      logger.warn({ err, cardId: updated.id }, 'clickup budget outcome pending');
+      pending.push('clickup');
+    }
+  }
 
-  return { card: updated, pending: await syncOutcome(updated, text) };
+  return { card: updated, pending };
 }

@@ -52,13 +52,15 @@ function BudgetForm({ cardId, onDone }: { cardId: string; onDone: () => void }) 
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const valid = requiredIntegration.trim() && budget.trim() && productionDeadline.trim();
+  const budgetValue = Number(budget);
+  const valid =
+    requiredIntegration.trim() && budget.trim() && budgetValue > 0 && productionDeadline.trim();
 
   async function submit() {
     setBusy(true);
     setError(null);
     try {
-      await api.sendBudget(cardId, { requiredIntegration, budget, productionDeadline });
+      await api.sendBudget(cardId, { requiredIntegration, budget: budgetValue, productionDeadline });
       onDone();
     } catch {
       setError('Não foi possível salvar. Tente novamente.');
@@ -79,8 +81,17 @@ function BudgetForm({ cardId, onDone }: { cardId: string; onDone: () => void }) 
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor={`bud-${cardId}`}>Orçamento</Label>
-          <Input id={`bud-${cardId}`} value={budget} onChange={(e) => setBudget(e.target.value)} />
+          <Label htmlFor={`bud-${cardId}`}>Orçamento (R$)</Label>
+          <Input
+            id={`bud-${cardId}`}
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            placeholder="0,00"
+            value={budget}
+            onChange={(e) => setBudget(e.target.value)}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`prz-${cardId}`}>Prazo de produção</Label>
@@ -168,7 +179,13 @@ function CardItem({
               {card.requiredIntegration}
             </p>
             <p>
-              <span className="font-medium text-foreground">Orçamento:</span> {card.budget}
+              <span className="font-medium text-foreground">Orçamento:</span>{' '}
+              {card.budget
+                ? Number(card.budget).toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  })
+                : '-'}
             </p>
             <p>
               <span className="font-medium text-foreground">Prazo:</span> {card.productionDeadline}

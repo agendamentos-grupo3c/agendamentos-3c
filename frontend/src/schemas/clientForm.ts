@@ -22,6 +22,7 @@ export const clientFormSchema = z.object({
     .email('E-mail do cliente inválido.')
     .max(TEXT_MAX),
   phone: z.string().trim().refine(isValidBrPhone, 'Telefone inválido. Informe DDD + número.'),
+  demandType: z.enum(['automacao', 'integracao']),
 });
 
 export type ClientFormValues = z.infer<typeof clientFormSchema>;
