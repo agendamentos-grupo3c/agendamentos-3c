@@ -49,6 +49,7 @@ export async function submitRoutes(app: FastifyInstance): Promise<void> {
           crmName: parsed.data.crmName,
           clientEmail: parsed.data.clientEmail,
           phone: parsed.data.phone,
+          demandType: parsed.data.demandType,
         },
         slot,
       });

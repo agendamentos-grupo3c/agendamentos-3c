@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { FORM } from '../config/constants.js';
+import { DEMAND_TYPES, FORM } from '../config/constants.js';
 import { isValidBrPhone } from '../lib/phone.js';
 
 // Schema compartilhado dos dados do cliente (seção 7.2). O front espelha este
@@ -17,6 +17,7 @@ export const clientFormSchema = z.object({
   crmName: z.string().trim().min(1, 'Informe o nome do CRM.').max(FORM.TEXT_MAX),
   clientEmail: z.string().trim().toLowerCase().email('E-mail do cliente inválido.').max(FORM.TEXT_MAX),
   phone: z.string().trim().refine(isValidBrPhone, 'Telefone inválido. Informe DDD + número.'),
+  demandType: z.enum(DEMAND_TYPES),
 });
 
 export type ClientFormInput = z.infer<typeof clientFormSchema>;

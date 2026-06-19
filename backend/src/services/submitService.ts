@@ -1,12 +1,9 @@
-import { SCHEDULING, STATUS_LABELS } from '../config/constants.js';
+import type { DemandType } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
-import { createTask } from '../integrations/clickup.js';
-import { sendWhatsapp } from '../integrations/dizparos.js';
+import { createKickoffTask } from '../integrations/clickup.js';
 import { createEvent, getBusyIntervals, getCalendarConfig } from '../integrations/googleCalendar.js';
-import { sendToChannels } from '../integrations/slack.js';
 import { logger } from '../lib/logger.js';
 import { toE164 } from '../lib/phone.js';
-import type { Collaborator } from '../lib/schedulingPolicy.js';
 import type { SlotPayload } from '../lib/slotToken.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
@@ -32,6 +29,7 @@ export interface SubmitKickoffInput {
     crmName: string;
     clientEmail: string;
     phone: string;
+    demandType: DemandType;
   };
   slot: SlotPayload;
 }
@@ -44,90 +42,21 @@ function slotTaken(): AppError {
   });
 }
 
-const whenFmt = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: SCHEDULING.TIMEZONE,
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
-
-function collaboratorLabel(c: Collaborator): string {
-  return c === 'alana' ? 'Alana Gaspar' : 'Guilherme Ribeiro';
-}
-
-function whenLabel(card: Card): string {
-  return card.scheduledAt ? whenFmt.format(new Date(card.scheduledAt)) : '';
-}
-
-function slackText(card: Card): string {
-  return [
-    `*Novo kickoff agendado* — status: ${STATUS_LABELS.kickoff}`,
-    `*Empresa:* ${card.companyName}`,
-    `*Cliente:* ${card.clientName} (${card.clientEmail})`,
-    `*Telefone:* ${card.clientPhoneE164}`,
-    `*CRM:* ${card.crmName}`,
-    `*Integração:* ${card.integrationSummary}`,
-    `*Responsável:* ${collaboratorLabel(card.assignedTo)}`,
-    `*Quando:* ${whenLabel(card)}`,
-    `*Vendedor:* ${card.sellerEmail}`,
-    card.meetingUrl ? `*Meet:* ${card.meetingUrl}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
-}
-
-function whatsappMessage(card: Card): string {
-  return (
-    `Olá! Sua reunião de kickoff de integração com o Grupo 3C foi agendada para ${whenLabel(card)}.` +
-    (card.meetingUrl ? ` Link da reunião: ${card.meetingUrl}.` : '') +
-    ' O convite também foi enviado ao seu e-mail.'
-  );
-}
-
-function clickupDescription(card: Card): string {
-  return [
-    `Cliente: ${card.clientName}`,
-    `E-mail: ${card.clientEmail}`,
-    `Telefone: ${card.clientPhoneE164}`,
-    `CRM: ${card.crmName}`,
-    `Integração: ${card.integrationSummary}`,
-    `Quando: ${whenLabel(card)}`,
-    `Responsável: ${collaboratorLabel(card.assignedTo)}`,
-    `Vendedor: ${card.sellerEmail}`,
-  ].join('\n');
-}
-
-// Disparos best-effort: cada canal é independente; falha não derruba o submit,
-// só fica pendente para reprocessamento (cenários 7.1.17/18). Idempotente: só
-// dispara o que ainda não foi marcado como concluído.
+// Notificação delegada ao n8n: nosso app só cria a task no ClickUp (com os
+// custom fields); o fluxo n8n da 3C reage e dispara Slack/WhatsApp.
+// Best-effort: se falhar, fica pendente para reprocessamento (replay idempotente).
 async function runDispatches(card: Card): Promise<DispatchChannel[]> {
   const pending: DispatchChannel[] = [];
 
-  if (!card.slackNotifiedAt) {
-    try {
-      await sendToChannels(slackText(card));
-      await markDispatched(card.id, 'slack');
-    } catch (err) {
-      logger.warn({ err, cardId: card.id }, 'slack dispatch pending');
-      pending.push('slack');
-    }
-  }
-
-  if (!card.whatsappSentAt) {
-    try {
-      await sendWhatsapp(card.clientPhoneE164, whatsappMessage(card));
-      await markDispatched(card.id, 'whatsapp');
-    } catch (err) {
-      logger.warn({ err, cardId: card.id }, 'whatsapp dispatch pending');
-      pending.push('whatsapp');
-    }
-  }
-
   if (!card.clickupSyncedAt) {
     try {
-      const { taskId } = await createTask({
-        name: `${card.companyName} — Kickoff`,
-        description: clickupDescription(card),
-        status: STATUS_LABELS.kickoff,
+      const { taskId } = await createKickoffTask({
+        companyName: card.companyName,
+        clientName: card.clientName,
+        phoneE164: card.clientPhoneE164,
+        description: card.integrationSummary,
+        requesterEmail: card.sellerEmail,
+        demandType: card.demandType ?? 'integracao',
       });
       await setClickupTaskId(card.id, taskId);
       await markDispatched(card.id, 'clickup');
@@ -147,7 +76,7 @@ export interface SubmitResult {
 
 export async function submitKickoff(input: SubmitKickoffInput): Promise<SubmitResult> {
   // Replay idempotente: mesma Idempotency-Key não recria nada; apenas reprocessa
-  // disparos que ainda estejam pendentes.
+  // o que ainda estiver pendente.
   const existing = await findByIdempotencyKey(input.idempotencyKey);
   if (existing) {
     return { card: existing, pending: await runDispatches(existing) };
@@ -179,6 +108,7 @@ export async function submitKickoff(input: SubmitKickoffInput): Promise<SubmitRe
       sellerEmail: input.sellerEmail,
       assignedTo: input.slot.collaborator,
       scheduledAt: input.slot.startISO,
+      demandType: input.form.demandType,
       idempotencyKey: input.idempotencyKey,
     });
   } catch (err) {
@@ -191,8 +121,7 @@ export async function submitKickoff(input: SubmitKickoffInput): Promise<SubmitRe
     throw err;
   }
 
-  // Evento é crítico: se falhar, libera o slot (apaga o card) e aborta — sem
-  // deixar card inconsistente (sem evento).
+  // Evento é crítico: se falhar, libera o slot (apaga o card) e aborta.
   try {
     const event = await createEvent({
       calendarId,

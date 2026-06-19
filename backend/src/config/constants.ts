@@ -32,14 +32,42 @@ export const CARD_STATUSES = ['kickoff', 'compareceu', 'no_show', 'orcamento_env
 
 export type CardStatus = (typeof CARD_STATUSES)[number];
 
-// Rótulos pt-BR por status (Slack/ClickUp). Ajuste os nomes do ClickUp para
-// casarem com os status configurados na lista, se necessário.
+// Rótulos pt-BR por status (uso interno/UI).
 export const STATUS_LABELS: Record<CardStatus, string> = {
   kickoff: 'Kickoff',
   compareceu: 'Compareceu',
   no_show: 'No-show',
   orcamento_enviado: 'Orçamento enviado',
 };
+
+// Tipo de demanda (seletor do formulário → custom field do ClickUp).
+export const DEMAND_TYPES = ['automacao', 'integracao'] as const;
+export type DemandType = (typeof DEMAND_TYPES)[number];
+
+// Integração ClickUp (funil automações/integrações). Lista vem de CLICKUP_LIST_ID.
+// Nossos status → status da lista; null = sem reflexo no ClickUp.
+export const CLICKUP_STATUS: Record<CardStatus, string | null> = {
+  kickoff: 'kickoff',
+  compareceu: null,
+  no_show: 'no show',
+  orcamento_enviado: 'orçamento enviado',
+};
+
+export const CLICKUP = {
+  FIELDS: {
+    companyName: '8aaeec62-53f9-4462-b3c4-ccfe9014c459',
+    clientName: 'ecf03b49-61a9-426d-998c-417167b6c85b',
+    phone: 'df7b081a-1a7d-4cfc-a11a-93b2a324ee23',
+    description: 'e40d9541-62e1-4d43-961a-78765b5ec620',
+    requesterEmail: '9c8355ce-abef-4c36-8e07-366f4023218e',
+    budget: '44e502fd-4f2b-4c1e-9bf4-7e919b7e33c0',
+    demandType: '02137d9f-3d47-4fa0-a673-eb6b87b39007',
+  },
+  DEMAND_TYPE_OPTION: {
+    automacao: 'c6456e35-cd31-4911-8c2c-6925ca1e4879',
+    integracao: '06b27c32-3a29-4f51-8d68-77f2f374bc0a',
+  },
+} as const;
 
 export const AUTH = {
   SESSION_COOKIE: '3c_session',
