@@ -14,10 +14,13 @@ const BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
 
 export type Role = 'integrator' | 'seller';
 
+export type Implanter = 'gabrielle' | 'bryan' | 'luan' | 'wagner';
+
 export interface ApiUser {
   email: string;
   name: string;
   role: Role;
+  implanter: Implanter | null;
 }
 
 export interface AvailableSlot {
@@ -70,6 +73,61 @@ export interface BudgetFields {
 
 export interface OutcomeResponse {
   card: CardSummary;
+  pending: string[];
+}
+
+// === Implantação ===
+
+export type Segment = 'enterprise' | 'middle' | 'small' | 'evolux';
+export type ImplantationSlotKind = 'coletiva_manha' | 'individual' | 'coletiva_tarde';
+export type ImplantationStatus = 'agendado' | 'compareceu' | 'no_show';
+
+export interface ImplantationSlot {
+  token: string;
+  dateLabel: string;
+  timeLabel: string;
+  kind: ImplantationSlotKind;
+  kindLabel: string;
+  remaining: number;
+  capacity: number;
+  startISO: string;
+}
+
+export interface ImplanterAvailability {
+  implanter: Implanter;
+  label: string;
+  slots: ImplantationSlot[];
+}
+
+export interface ImplantationAvailability {
+  implanters: ImplanterAvailability[];
+}
+
+export interface ImplantationPayload {
+  companyName: string;
+  clientName: string;
+  clientEmail: string;
+  phone: string;
+  segment: Segment;
+  slotToken: string;
+}
+
+export interface ImplantationBooking {
+  id: string;
+  companyName: string;
+  clientName: string;
+  clientEmail: string;
+  segment: Segment;
+  implanter: Implanter;
+  slotKind: ImplantationSlotKind;
+  scheduledStart: string;
+  meetingUrl: string | null;
+  status: ImplantationStatus;
+  attendanceNotes: string | null;
+}
+
+export interface ImplantationSubmitResponse {
+  booking: ImplantationBooking;
   pending: string[];
 }
 
@@ -141,6 +199,27 @@ export const api = {
 
   sendBudget: (id: string, fields: BudgetFields): Promise<OutcomeResponse> =>
     csrfPost<OutcomeResponse>(`/cards/${id}/budget`, fields),
+
+  // --- Implantação ---
+  getImplantationAvailability: (segment: Segment): Promise<ImplantationAvailability> =>
+    request<ImplantationAvailability>(`/implantation/availability?segment=${segment}`),
+
+  bookImplantation: (
+    payload: ImplantationPayload,
+    idempotencyKey: string,
+  ): Promise<ImplantationSubmitResponse> =>
+    csrfPost<ImplantationSubmitResponse>('/implantation', payload, {
+      'Idempotency-Key': idempotencyKey,
+    }),
+
+  listImplantations: (): Promise<ImplantationBooking[]> =>
+    request<ImplantationBooking[]>('/implantation/bookings'),
+
+  implantationAttended: (id: string, notes: string): Promise<{ booking: ImplantationBooking }> =>
+    csrfPost<{ booking: ImplantationBooking }>(`/implantation/${id}/attended`, { notes }),
+
+  implantationNoShow: (id: string): Promise<{ booking: ImplantationBooking }> =>
+    csrfPost<{ booking: ImplantationBooking }>(`/implantation/${id}/no-show`),
 
   logout: (): Promise<void> => csrfPost<void>('/auth/logout'),
 };

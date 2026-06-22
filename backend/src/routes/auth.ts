@@ -15,7 +15,7 @@ import {
   createSessionToken,
   setSessionCookie,
 } from '../lib/session.js';
-import { getRole } from '../lib/roles.js';
+import { getImplanterForEmail, getRole } from '../lib/roles.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 import { completeLogin } from '../services/authService.js';
 
@@ -97,7 +97,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/auth/me', { preHandler: requireAuth }, async (req) => {
-    return { email: req.user!.email, name: req.user!.name, role: getRole(req.user!.email) };
+    const email = req.user!.email;
+    return {
+      email,
+      name: req.user!.name,
+      role: getRole(email),
+      implanter: getImplanterForEmail(email),
+    };
   });
 
   // Token CSRF (double-submit): o front busca aqui e reenvia em X-CSRF-Token.

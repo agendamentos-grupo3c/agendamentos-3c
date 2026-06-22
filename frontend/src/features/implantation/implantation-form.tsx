@@ -14,29 +14,35 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import type { Segment } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { maskBrPhone } from '@/lib/phone';
-import { clientFormSchema, type ClientFormValues } from '@/schemas/clientForm';
+import { implantationFormSchema, type ImplantationFormValues } from '@/schemas/implantation';
 
-const EMPTY: ClientFormValues = {
+const EMPTY: ImplantationFormValues = {
   companyName: '',
   clientName: '',
-  integrationSummary: '',
-  crmName: '',
   clientEmail: '',
   phone: '',
-  demandType: 'integracao',
+  segment: 'enterprise',
 };
 
-export function ClientForm({
+const SEGMENTS: { value: Segment; label: string }[] = [
+  { value: 'enterprise', label: 'Enterprise' },
+  { value: 'middle', label: 'Middle' },
+  { value: 'small', label: 'Small' },
+  { value: 'evolux', label: 'Evolux' },
+];
+
+export function ImplantationForm({
   defaultValues,
   onSubmit,
 }: {
-  defaultValues?: ClientFormValues;
-  onSubmit: (values: ClientFormValues) => void;
+  defaultValues?: ImplantationFormValues;
+  onSubmit: (values: ImplantationFormValues) => void;
 }) {
-  const form = useForm<ClientFormValues>({
-    resolver: zodResolver(clientFormSchema),
+  const form = useForm<ImplantationFormValues>({
+    resolver: zodResolver(implantationFormSchema),
     mode: 'onTouched',
     defaultValues: defaultValues ?? EMPTY,
   });
@@ -45,11 +51,43 @@ export function ClientForm({
     <Card className="rounded-3xl">
       <CardHeader>
         <CardTitle>Dados do cliente</CardTitle>
-        <CardDescription>Preencha os dados para agendar o kickoff da integração.</CardDescription>
+        <CardDescription>Preencha os dados do lead para agendar o treinamento.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5" noValidate>
+            <FormField
+              control={form.control}
+              name="segment"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Segmento do cliente</FormLabel>
+                  <FormControl>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {SEGMENTS.map(({ value, label }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => field.onChange(value)}
+                          aria-pressed={field.value === value}
+                          className={cn(
+                            'rounded-xl border px-3 py-2.5 text-sm font-medium transition-all',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            field.value === value
+                              ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary/40'
+                              : 'border-input text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="companyName"
@@ -72,20 +110,6 @@ export function ClientForm({
                   <FormLabel>Nome do cliente</FormLabel>
                   <FormControl>
                     <Input placeholder="Ex.: Maria Souza" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="crmName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome do CRM do cliente</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex.: HubSpot, Pipedrive…" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -125,26 +149,8 @@ export function ClientForm({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="integrationSummary"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Resumo do que precisam com a integração</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      rows={4}
-                      placeholder="Descreva o que o cliente precisa integrar…"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <Button type="submit" size="lg" className="w-full">
-              Continuar
+              Ver horários
             </Button>
           </form>
         </Form>

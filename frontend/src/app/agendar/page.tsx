@@ -1,6 +1,6 @@
 import { AppHeader } from '@/components/app-header';
 import { AuthGuard } from '@/features/auth/auth-guard';
-import { SchedulingFlow } from '@/features/scheduling/scheduling-flow';
+import { AgendarFlow } from '@/features/scheduling/agendar-flow';
 
 export default function AgendarPage() {
   return (
@@ -8,7 +8,7 @@ export default function AgendarPage() {
       <div className="flex min-h-screen flex-col">
         <AppHeader />
         <main className="mx-auto w-full max-w-3xl flex-1 p-6 sm:p-8">
-          <SchedulingFlow />
+          <AgendarFlow />
         </main>
       </div>
     </AuthGuard>

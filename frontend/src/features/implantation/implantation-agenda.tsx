@@ -1,0 +1,185 @@
+'use client';
+
+import * as React from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  api,
+  type ImplantationAvailability,
+  type ImplantationSlot,
+  type ImplanterAvailability,
+  type Segment,
+} from '@/lib/api';
+import { cn } from '@/lib/utils';
+
+export interface SelectedImplantationSlot extends ImplantationSlot {
+  implanter: string;
+  implanterLabel: string;
+}
+
+function groupByDate(slots: ImplantationSlot[]): [string, ImplantationSlot[]][] {
+  const map = new Map<string, ImplantationSlot[]>();
+  for (const slot of slots) {
+    const list = map.get(slot.dateLabel) ?? [];
+    list.push(slot);
+    map.set(slot.dateLabel, list);
+  }
+  return [...map.entries()];
+}
+
+function SeatBadge({ slot }: { slot: ImplantationSlot }) {
+  if (slot.capacity === 1) {
+    return <span className="text-[11px] font-medium text-muted-foreground">Individual · 1 vaga</span>;
+  }
+  const scarce = slot.remaining <= 2;
+  return (
+    <span
+      className={cn(
+        'text-[11px] font-medium',
+        scarce ? 'text-destructive' : 'text-muted-foreground',
+      )}
+    >
+      {slot.remaining}/{slot.capacity} vagas
+    </span>
+  );
+}
+
+function ImplanterColumn({
+  column,
+  selectedToken,
+  onSelect,
+}: {
+  column: ImplanterAvailability;
+  selectedToken?: string;
+  onSelect: (slot: ImplantationSlot) => void;
+}) {
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle className="text-base">{column.label}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {column.slots.length === 0 && (
+          <p className="text-sm text-muted-foreground">Sem vagas nos próximos dias úteis.</p>
+        )}
+        {groupByDate(column.slots).map(([dateLabel, daySlots]) => (
+          <div key={dateLabel} className="space-y-2">
+            <p className="text-xs font-medium uppercase text-muted-foreground">{dateLabel}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {daySlots.map((slot) => (
+                <button
+                  key={slot.token}
+                  type="button"
+                  onClick={() => onSelect(slot)}
+                  className={cn(
+                    'flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition-all',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    slot.token === selectedToken
+                      ? 'border-primary bg-primary/10 ring-1 ring-primary/40'
+                      : 'border-input hover:border-primary/40',
+                  )}
+                >
+                  <span className="text-sm font-medium">{slot.timeLabel}</span>
+                  <SeatBadge slot={slot} />
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ImplantationAgenda({
+  segment,
+  notice,
+  onBack,
+  onConfirm,
+}: {
+  segment: Segment;
+  notice?: string;
+  onBack: () => void;
+  onConfirm: (slot: SelectedImplantationSlot) => void;
+}) {
+  const [data, setData] = React.useState<ImplantationAvailability | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(false);
+  const [selected, setSelected] = React.useState<SelectedImplantationSlot | null>(null);
+
+  React.useEffect(() => {
+    let active = true;
+    api
+      .getImplantationAvailability(segment)
+      .then((d) => active && (setData(d), setLoading(false)))
+      .catch(() => active && (setError(true), setLoading(false)));
+    return () => {
+      active = false;
+    };
+  }, [segment]);
+
+  if (loading) {
+    return <p className="text-center text-muted-foreground">Carregando horários…</p>;
+  }
+
+  if (error || !data) {
+    return (
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <p className="text-sm text-destructive">Não foi possível carregar a agenda.</p>
+          <Button variant="outline" onClick={onBack}>
+            Voltar
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {notice && (
+        <p
+          role="alert"
+          className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          {notice}
+        </p>
+      )}
+
+      <div
+        className={cn(
+          'grid gap-4',
+          data.implanters.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-1',
+        )}
+      >
+        {data.implanters.map((column) => (
+          <ImplanterColumn
+            key={column.implanter}
+            column={column}
+            selectedToken={selected?.implanter === column.implanter ? selected.token : undefined}
+            onSelect={(slot) =>
+              setSelected({ ...slot, implanter: column.implanter, implanterLabel: column.label })
+            }
+          />
+        ))}
+      </div>
+
+      <div className="flex flex-col items-stretch justify-between gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center">
+        <span className="text-sm text-muted-foreground">
+          {selected
+            ? `${selected.implanterLabel} · ${selected.dateLabel} · ${selected.timeLabel}`
+            : 'Selecione um horário disponível.'}
+        </span>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={onBack}>
+            Voltar
+          </Button>
+          <Button disabled={!selected} onClick={() => selected && onConfirm(selected)}>
+            Agendar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
