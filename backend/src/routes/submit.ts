@@ -41,6 +41,7 @@ export async function submitRoutes(app: FastifyInstance): Promise<void> {
 
       const result = await submitKickoff({
         sellerEmail: req.user!.email,
+        sellerName: req.user!.name,
         idempotencyKey,
         form: {
           companyName: parsed.data.companyName,
@@ -49,6 +50,7 @@ export async function submitRoutes(app: FastifyInstance): Promise<void> {
           crmName: parsed.data.crmName,
           clientEmail: parsed.data.clientEmail,
           phone: parsed.data.phone,
+          clientId: parsed.data.clientId,
           demandType: parsed.data.demandType,
         },
         slot,

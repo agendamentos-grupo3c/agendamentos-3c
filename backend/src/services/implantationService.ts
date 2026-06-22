@@ -21,12 +21,14 @@ export type ImplantationDispatch = 'calendar' | 'n8n';
 
 export interface BookImplantationInput {
   sellerEmail: string;
+  sellerName: string;
   idempotencyKey: string;
   form: {
     companyName: string;
     clientName: string;
     clientEmail: string;
     phone: string;
+    clientId: string;
     segment: Segment;
   };
   slot: ImplantationSlotPayload;
@@ -88,9 +90,12 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         clientName: booking.clientName,
         clientEmail: booking.clientEmail,
         clientPhoneE164: booking.clientPhoneE164,
+        clientId: booking.clientId,
         implanter: booking.implanter,
         scheduledStart: booking.scheduledStart,
         meetingUrl: booking.meetingUrl,
+        requesterName: booking.sellerName,
+        requesterEmail: booking.sellerEmail,
       });
       await markN8nNotified(booking.id);
     } catch (err) {
@@ -126,6 +131,7 @@ export async function bookImplantation(input: BookImplantationInput): Promise<Bo
         clientName: input.form.clientName,
         clientEmail: input.form.clientEmail,
         clientPhoneE164: toE164(input.form.phone),
+        clientId: input.form.clientId,
         segment,
         implanter: slot.implanter,
         slotDate: spDateString(new Date(slot.startISO)),
@@ -133,6 +139,7 @@ export async function bookImplantation(input: BookImplantationInput): Promise<Bo
         scheduledStart: slot.startISO,
         scheduledEnd: slot.endISO,
         sellerEmail: input.sellerEmail,
+        sellerName: input.sellerName,
         idempotencyKey: input.idempotencyKey,
       },
       template.capacity,

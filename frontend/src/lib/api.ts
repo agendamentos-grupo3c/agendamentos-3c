@@ -41,6 +41,7 @@ export interface SubmitPayload {
   integrationSummary: string;
   crmName: string;
   clientEmail: string;
+  clientId: string;
   phone: string;
   demandType: 'automacao' | 'integracao';
   slotToken: string;
@@ -104,6 +105,7 @@ export interface ImplantationPayload {
   companyName: string;
   clientName: string;
   clientEmail: string;
+  clientId: string;
   phone: string;
   segment: Segment;
   slotToken: string;

@@ -8,6 +8,7 @@ export const implantationFormSchema = z.object({
   companyName: z.string().trim().min(1, 'Informe o nome da empresa.').max(FORM.TEXT_MAX),
   clientName: z.string().trim().min(1, 'Informe o nome do cliente.').max(FORM.TEXT_MAX),
   clientEmail: z.string().trim().toLowerCase().email('E-mail do cliente inválido.').max(FORM.TEXT_MAX),
+  clientId: z.string().trim().min(1, 'Informe o ID do cliente.').max(FORM.TEXT_MAX),
   phone: z.string().trim().refine(isValidBrPhone, 'Telefone inválido. Informe DDD + número.'),
   segment: z.enum(SEGMENTS),
 });

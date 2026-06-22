@@ -23,6 +23,7 @@ const EMPTY: ImplantationFormValues = {
   companyName: '',
   clientName: '',
   clientEmail: '',
+  clientId: '',
   phone: '',
   segment: 'enterprise',
 };
@@ -124,6 +125,20 @@ export function ImplantationForm({
                   <FormLabel>E-mail do cliente</FormLabel>
                   <FormControl>
                     <Input type="email" placeholder="cliente@empresa.com" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="clientId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ID do cliente</FormLabel>
+                  <FormControl>
+                    <Input placeholder="ID do cliente na plataforma" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

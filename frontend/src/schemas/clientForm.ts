@@ -21,6 +21,7 @@ export const clientFormSchema = z.object({
     .toLowerCase()
     .email('E-mail do cliente inválido.')
     .max(TEXT_MAX),
+  clientId: z.string().trim().min(1, 'Informe o ID do cliente.').max(TEXT_MAX),
   phone: z.string().trim().refine(isValidBrPhone, 'Telefone inválido. Informe DDD + número.'),
   // O backend ainda distingue automação/integração; como o formulário unificou
   // em "Integrações/Automações", enviamos um valor fixo (sem expor a escolha).

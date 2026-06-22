@@ -10,7 +10,9 @@ export interface Card {
   crmName: string;
   clientEmail: string;
   clientPhoneE164: string;
+  clientId: string | null;
   sellerEmail: string;
+  sellerName: string | null;
   assignedTo: Collaborator;
   scheduledAt: string | null;
   googleEventId: string | null;
@@ -35,7 +37,9 @@ const COLUMNS = `
   crm_name AS "crmName",
   client_email AS "clientEmail",
   client_phone_e164 AS "clientPhoneE164",
+  client_id AS "clientId",
   seller_email AS "sellerEmail",
+  seller_name AS "sellerName",
   assigned_to AS "assignedTo",
   scheduled_at AS "scheduledAt",
   google_event_id AS "googleEventId",
@@ -59,7 +63,9 @@ export interface InsertCardInput {
   crmName: string;
   clientEmail: string;
   clientPhoneE164: string;
+  clientId: string;
   sellerEmail: string;
+  sellerName: string;
   assignedTo: Collaborator;
   scheduledAt: string;
   demandType: DemandType;
@@ -82,9 +88,9 @@ export async function insertCard(input: InsertCardInput): Promise<Card> {
   const { rows } = await query<Card>(
     `INSERT INTO cards
        (company_name, client_name, integration_summary, crm_name, client_email,
-        client_phone_e164, seller_email, assigned_to, scheduled_at, demand_type,
-        idempotency_key, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'kickoff')
+        client_phone_e164, client_id, seller_email, seller_name, assigned_to,
+        scheduled_at, demand_type, idempotency_key, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'kickoff')
      RETURNING ${COLUMNS}`,
     [
       input.companyName,
@@ -93,7 +99,9 @@ export async function insertCard(input: InsertCardInput): Promise<Card> {
       input.crmName,
       input.clientEmail,
       input.clientPhoneE164,
+      input.clientId,
       input.sellerEmail,
+      input.sellerName,
       input.assignedTo,
       input.scheduledAt,
       input.demandType,

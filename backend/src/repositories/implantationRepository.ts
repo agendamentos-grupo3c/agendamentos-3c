@@ -9,6 +9,7 @@ export interface Implantation {
   clientName: string;
   clientEmail: string;
   clientPhoneE164: string;
+  clientId: string | null;
   segment: Segment;
   implanter: Implanter;
   slotDate: string;
@@ -20,6 +21,7 @@ export interface Implantation {
   status: ImplantationStatus;
   attendanceNotes: string | null;
   sellerEmail: string;
+  sellerName: string | null;
   idempotencyKey: string | null;
   n8nNotifiedAt: string | null;
 }
@@ -30,6 +32,7 @@ const COLUMNS = `
   client_name AS "clientName",
   client_email AS "clientEmail",
   client_phone_e164 AS "clientPhoneE164",
+  client_id AS "clientId",
   segment,
   implanter,
   slot_date AS "slotDate",
@@ -41,6 +44,7 @@ const COLUMNS = `
   status,
   attendance_notes AS "attendanceNotes",
   seller_email AS "sellerEmail",
+  seller_name AS "sellerName",
   idempotency_key AS "idempotencyKey",
   n8n_notified_at AS "n8nNotifiedAt"
 `;
@@ -61,6 +65,7 @@ export interface InsertImplantationInput {
   clientName: string;
   clientEmail: string;
   clientPhoneE164: string;
+  clientId: string;
   segment: Segment;
   implanter: Implanter;
   slotDate: string;
@@ -68,6 +73,7 @@ export interface InsertImplantationInput {
   scheduledStart: string;
   scheduledEnd: string;
   sellerEmail: string;
+  sellerName: string;
   idempotencyKey: string;
 }
 
@@ -91,16 +97,17 @@ export async function insertWithCapacity(
 
     const { rows } = await client.query<Implantation>(
       `INSERT INTO implantations
-         (company_name, client_name, client_email, client_phone_e164, segment,
-          implanter, slot_date, slot_kind, scheduled_start, scheduled_end,
-          seller_email, idempotency_key, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'agendado')
+         (company_name, client_name, client_email, client_phone_e164, client_id,
+          segment, implanter, slot_date, slot_kind, scheduled_start, scheduled_end,
+          seller_email, seller_name, idempotency_key, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'agendado')
        RETURNING ${COLUMNS}`,
       [
         input.companyName,
         input.clientName,
         input.clientEmail,
         input.clientPhoneE164,
+        input.clientId,
         input.segment,
         input.implanter,
         input.slotDate,
@@ -108,6 +115,7 @@ export async function insertWithCapacity(
         input.scheduledStart,
         input.scheduledEnd,
         input.sellerEmail,
+        input.sellerName,
         input.idempotencyKey,
       ],
     );

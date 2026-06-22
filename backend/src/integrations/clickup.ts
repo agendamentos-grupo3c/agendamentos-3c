@@ -40,6 +40,8 @@ export interface KickoffTaskInput {
   phoneE164: string;
   description: string;
   requesterEmail: string;
+  requesterName: string;
+  clientId: string;
   demandType: DemandType;
 }
 
@@ -56,6 +58,8 @@ export async function createKickoffTask(input: KickoffTaskInput): Promise<{ task
       { id: CLICKUP.FIELDS.phone, value: input.phoneE164 },
       { id: CLICKUP.FIELDS.description, value: input.description },
       { id: CLICKUP.FIELDS.requesterEmail, value: input.requesterEmail },
+      { id: CLICKUP.FIELDS.requesterName, value: input.requesterName },
+      { id: CLICKUP.FIELDS.clientId, value: input.clientId },
       { id: CLICKUP.FIELDS.demandType, value: CLICKUP.DEMAND_TYPE_OPTION[input.demandType] },
     ],
   };

@@ -60,6 +60,8 @@ export const CLICKUP = {
     phone: 'df7b081a-1a7d-4cfc-a11a-93b2a324ee23',
     description: 'e40d9541-62e1-4d43-961a-78765b5ec620',
     requesterEmail: '9c8355ce-abef-4c36-8e07-366f4023218e',
+    requesterName: '24a69984-522d-42cd-a7c7-4d8db779e943',
+    clientId: 'd97ccd9f-fec4-4df9-b187-84cc75ad84af',
     budget: '44e502fd-4f2b-4c1e-9bf4-7e919b7e33c0',
     demandType: '02137d9f-3d47-4fa0-a673-eb6b87b39007',
   },

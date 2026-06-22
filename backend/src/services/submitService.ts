@@ -21,6 +21,7 @@ import {
 
 export interface SubmitKickoffInput {
   sellerEmail: string;
+  sellerName: string;
   idempotencyKey: string;
   form: {
     companyName: string;
@@ -29,6 +30,7 @@ export interface SubmitKickoffInput {
     crmName: string;
     clientEmail: string;
     phone: string;
+    clientId: string;
     demandType: DemandType;
   };
   slot: SlotPayload;
@@ -56,6 +58,8 @@ async function runDispatches(card: Card): Promise<DispatchChannel[]> {
         phoneE164: card.clientPhoneE164,
         description: card.integrationSummary,
         requesterEmail: card.sellerEmail,
+        requesterName: card.sellerName ?? '',
+        clientId: card.clientId ?? '',
         demandType: card.demandType ?? 'integracao',
       });
       await setClickupTaskId(card.id, taskId);
@@ -105,7 +109,9 @@ export async function submitKickoff(input: SubmitKickoffInput): Promise<SubmitRe
       crmName: input.form.crmName,
       clientEmail: input.form.clientEmail,
       clientPhoneE164: toE164(input.form.phone),
+      clientId: input.form.clientId,
       sellerEmail: input.sellerEmail,
+      sellerName: input.sellerName,
       assignedTo: input.slot.collaborator,
       scheduledAt: input.slot.startISO,
       demandType: input.form.demandType,

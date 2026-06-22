@@ -92,12 +92,14 @@ export async function implantationRoutes(app: FastifyInstance): Promise<void> {
 
       const result = await bookImplantation({
         sellerEmail: req.user!.email,
+        sellerName: req.user!.name,
         idempotencyKey,
         form: {
           companyName: parsed.data.companyName,
           clientName: parsed.data.clientName,
           clientEmail: parsed.data.clientEmail,
           phone: parsed.data.phone,
+          clientId: parsed.data.clientId,
           segment: parsed.data.segment,
         },
         slot,

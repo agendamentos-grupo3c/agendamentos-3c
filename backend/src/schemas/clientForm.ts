@@ -16,6 +16,7 @@ export const clientFormSchema = z.object({
     .max(FORM.SUMMARY_MAX),
   crmName: z.string().trim().min(1, 'Informe o nome do CRM.').max(FORM.TEXT_MAX),
   clientEmail: z.string().trim().toLowerCase().email('E-mail do cliente inválido.').max(FORM.TEXT_MAX),
+  clientId: z.string().trim().min(1, 'Informe o ID do cliente.').max(FORM.TEXT_MAX),
   phone: z.string().trim().refine(isValidBrPhone, 'Telefone inválido. Informe DDD + número.'),
   demandType: z.enum(DEMAND_TYPES),
 });

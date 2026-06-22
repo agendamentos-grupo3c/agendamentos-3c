@@ -8,9 +8,12 @@ export interface ImplantationNotification {
   clientName: string;
   clientEmail: string;
   clientPhoneE164: string;
+  clientId: string | null;
   implanter: string;
   scheduledStart: string;
   meetingUrl: string | null;
+  requesterName: string | null;
+  requesterEmail: string;
 }
 
 export async function notifyImplantation(payload: ImplantationNotification): Promise<void> {

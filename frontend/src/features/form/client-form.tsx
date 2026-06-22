@@ -24,6 +24,7 @@ const EMPTY: ClientFormValues = {
   integrationSummary: '',
   crmName: '',
   clientEmail: '',
+  clientId: '',
   phone: '',
   demandType: 'integracao',
 };
@@ -100,6 +101,20 @@ export function ClientForm({
                   <FormLabel>E-mail do cliente</FormLabel>
                   <FormControl>
                     <Input type="email" placeholder="cliente@empresa.com" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="clientId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ID do cliente</FormLabel>
+                  <FormControl>
+                    <Input placeholder="ID do cliente na plataforma" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
