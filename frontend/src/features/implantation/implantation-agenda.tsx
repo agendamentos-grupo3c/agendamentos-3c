@@ -1,22 +1,12 @@
 'use client';
 
+import { ChevronDown } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  api,
-  type ImplantationAvailability,
-  type ImplantationSlot,
-  type ImplanterAvailability,
-  type Segment,
-} from '@/lib/api';
+import { Card, CardContent } from '@/components/ui/card';
+import { api, type ImplantationAvailability, type ImplantationSlot, type Segment } from '@/lib/api';
 import { cn } from '@/lib/utils';
-
-export interface SelectedImplantationSlot extends ImplantationSlot {
-  implanter: string;
-  implanterLabel: string;
-}
 
 function groupByDate(slots: ImplantationSlot[]): [string, ImplantationSlot[]][] {
   const map = new Map<string, ImplantationSlot[]>();
@@ -34,61 +24,48 @@ function SeatBadge({ slot }: { slot: ImplantationSlot }) {
   }
   const scarce = slot.remaining <= 2;
   return (
-    <span
-      className={cn(
-        'text-[11px] font-medium',
-        scarce ? 'text-destructive' : 'text-muted-foreground',
-      )}
-    >
+    <span className={cn('text-[11px] font-medium', scarce ? 'text-destructive' : 'text-muted-foreground')}>
       {slot.remaining}/{slot.capacity} vagas
     </span>
   );
 }
 
-function ImplanterColumn({
-  column,
+function SlotGrid({
+  slots,
   selectedToken,
   onSelect,
 }: {
-  column: ImplanterAvailability;
+  slots: ImplantationSlot[];
   selectedToken?: string;
   onSelect: (slot: ImplantationSlot) => void;
 }) {
   return (
-    <Card className="rounded-2xl">
-      <CardHeader>
-        <CardTitle className="text-base">{column.label}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {column.slots.length === 0 && (
-          <p className="text-sm text-muted-foreground">Sem vagas nos próximos dias úteis.</p>
-        )}
-        {groupByDate(column.slots).map(([dateLabel, daySlots]) => (
-          <div key={dateLabel} className="space-y-2">
-            <p className="text-xs font-medium uppercase text-muted-foreground">{dateLabel}</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {daySlots.map((slot) => (
-                <button
-                  key={slot.token}
-                  type="button"
-                  onClick={() => onSelect(slot)}
-                  className={cn(
-                    'flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition-all',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    slot.token === selectedToken
-                      ? 'border-primary bg-primary/10 ring-1 ring-primary/40'
-                      : 'border-input hover:border-primary/40',
-                  )}
-                >
-                  <span className="text-sm font-medium">{slot.timeLabel}</span>
-                  <SeatBadge slot={slot} />
-                </button>
-              ))}
-            </div>
+    <div className="space-y-4">
+      {groupByDate(slots).map(([dateLabel, daySlots]) => (
+        <div key={dateLabel} className="space-y-2">
+          <p className="text-xs font-medium uppercase text-muted-foreground">{dateLabel}</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {daySlots.map((slot) => (
+              <button
+                key={slot.token}
+                type="button"
+                onClick={() => onSelect(slot)}
+                className={cn(
+                  'flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition-all',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  slot.token === selectedToken
+                    ? 'border-primary bg-primary/10 ring-1 ring-primary/40'
+                    : 'border-input hover:border-primary/40',
+                )}
+              >
+                <span className="text-sm font-medium">{slot.timeLabel}</span>
+                <SeatBadge slot={slot} />
+              </button>
+            ))}
           </div>
-        ))}
-      </CardContent>
-    </Card>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -101,12 +78,13 @@ export function ImplantationAgenda({
   segment: Segment;
   notice?: string;
   onBack: () => void;
-  onConfirm: (slot: SelectedImplantationSlot) => void;
+  onConfirm: (slot: ImplantationSlot) => void;
 }) {
   const [data, setData] = React.useState<ImplantationAvailability | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
-  const [selected, setSelected] = React.useState<SelectedImplantationSlot | null>(null);
+  const [selected, setSelected] = React.useState<ImplantationSlot | null>(null);
+  const [showOthers, setShowOthers] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
@@ -136,6 +114,9 @@ export function ImplantationAgenda({
     );
   }
 
+  const hasBest = data.best.length > 0;
+  const hasOthers = data.others.length > 0;
+
   return (
     <div className="space-y-4">
       {notice && (
@@ -147,29 +128,45 @@ export function ImplantationAgenda({
         </p>
       )}
 
-      <div
-        className={cn(
-          'grid gap-4',
-          data.implanters.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-1',
-        )}
-      >
-        {data.implanters.map((column) => (
-          <ImplanterColumn
-            key={column.implanter}
-            column={column}
-            selectedToken={selected?.implanter === column.implanter ? selected.token : undefined}
-            onSelect={(slot) =>
-              setSelected({ ...slot, implanter: column.implanter, implanterLabel: column.label })
-            }
-          />
-        ))}
-      </div>
+      <Card className="rounded-2xl">
+        <CardContent className="space-y-3 pt-6">
+          <h2 className="text-base font-semibold">Melhores horários</h2>
+          {hasBest ? (
+            <SlotGrid slots={data.best} selectedToken={selected?.token} onSelect={setSelected} />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Sem horários no momento. Veja os outros horários disponíveis abaixo.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {hasOthers && (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setShowOthers((v) => !v)}
+            className="flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm font-medium transition-colors hover:bg-secondary/60"
+            aria-expanded={showOthers || !hasBest}
+          >
+            <span>Outros horários disponíveis ({data.others.length})</span>
+            <ChevronDown
+              className={cn('size-4 transition-transform', (showOthers || !hasBest) && 'rotate-180')}
+            />
+          </button>
+          {(showOthers || !hasBest) && (
+            <Card className="rounded-2xl">
+              <CardContent className="pt-6">
+                <SlotGrid slots={data.others} selectedToken={selected?.token} onSelect={setSelected} />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col items-stretch justify-between gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center">
         <span className="text-sm text-muted-foreground">
-          {selected
-            ? `${selected.implanterLabel} · ${selected.dateLabel} · ${selected.timeLabel}`
-            : 'Selecione um horário disponível.'}
+          {selected ? `${selected.dateLabel} · ${selected.timeLabel}` : 'Selecione um horário disponível.'}
         </span>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={onBack}>

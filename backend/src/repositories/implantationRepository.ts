@@ -155,6 +155,16 @@ export async function countsForWindow(
   return rows;
 }
 
+// Implantador da reserva mais recente do segmento — base do rodízio (alterna a
+// partir do último agendado).
+export async function lastImplanterForSegment(segment: Segment): Promise<Implanter | null> {
+  const { rows } = await query<{ implanter: Implanter }>(
+    `SELECT implanter FROM implantations WHERE segment = $1 ORDER BY created_at DESC LIMIT 1`,
+    [segment],
+  );
+  return rows[0]?.implanter ?? null;
+}
+
 export async function listByImplanter(implanter: Implanter): Promise<Implantation[]> {
   const { rows } = await query<Implantation>(
     `SELECT ${COLUMNS} FROM implantations WHERE implanter = $1 ORDER BY scheduled_start DESC`,

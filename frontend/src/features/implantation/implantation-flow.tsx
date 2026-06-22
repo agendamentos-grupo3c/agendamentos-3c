@@ -4,10 +4,10 @@ import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ApiError, api, type ImplantationSubmitResponse } from '@/lib/api';
+import { ApiError, api, type ImplantationSlot, type ImplantationSubmitResponse } from '@/lib/api';
 import type { ImplantationFormValues } from '@/schemas/implantation';
 
-import { ImplantationAgenda, type SelectedImplantationSlot } from './implantation-agenda';
+import { ImplantationAgenda } from './implantation-agenda';
 import { ImplantationForm } from './implantation-form';
 
 type Step = 'form' | 'agenda' | 'submitting' | 'done' | 'error';
@@ -18,7 +18,7 @@ export function ImplantationFlow() {
   const [result, setResult] = React.useState<ImplantationSubmitResponse | null>(null);
   const [notice, setNotice] = React.useState<string | undefined>(undefined);
 
-  async function handleConfirm(slot: SelectedImplantationSlot) {
+  async function handleConfirm(slot: ImplantationSlot) {
     if (!formData) return;
     setStep('submitting');
     setNotice(undefined);

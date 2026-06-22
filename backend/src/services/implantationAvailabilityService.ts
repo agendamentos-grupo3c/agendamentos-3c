@@ -1,15 +1,18 @@
 import {
   IMPLANTATION,
   IMPLANTATION_SLOT_LABELS,
-  IMPLANTER_LABELS,
   SEGMENT_IMPLANTERS,
   type Implanter,
   type ImplantationSlotKind,
   type Segment,
 } from '../config/constants.js';
-import { generateImplantationSlots, spDateString } from '../lib/implantationPolicy.js';
+import {
+  generateImplantationSlots,
+  spDateString,
+  type ImplantationSlot,
+} from '../lib/implantationPolicy.js';
 import { encodeImplantationToken } from '../lib/slotToken.js';
-import { countsForWindow } from '../repositories/implantationRepository.js';
+import { countsForWindow, lastImplanterForSegment } from '../repositories/implantationRepository.js';
 
 export interface AvailableImplantationSlot {
   token: string;
@@ -22,14 +25,12 @@ export interface AvailableImplantationSlot {
   startISO: string;
 }
 
-export interface ImplanterAvailability {
-  implanter: Implanter;
-  label: string;
-  slots: AvailableImplantationSlot[];
-}
-
+// O implantador é OMITIDO de propósito: o vendedor escolhe só o horário (evita
+// favoritismo). "best" = horários do próximo da vez (rodízio); "others" = demais
+// elegíveis, revelados sob demanda quando o próximo da vez não tem o horário.
 export interface ImplantationAvailability {
-  implanters: ImplanterAvailability[];
+  best: AvailableImplantationSlot[];
+  others: AvailableImplantationSlot[];
 }
 
 const dateLabelFmt = new Intl.DateTimeFormat('pt-BR', {
@@ -48,15 +49,22 @@ const timeLabelFmt = new Intl.DateTimeFormat('pt-BR', {
 const countKey = (implanter: Implanter, date: string, kind: ImplantationSlotKind): string =>
   `${implanter}|${date}|${kind}`;
 
-// Disponibilidade por segmento: para cada implantador que atende, lista os slots
-// futuros (hoje + dias úteis) com as vagas restantes (capacidade − reservas).
+// Rodízio por alternância: o próximo da vez é o elegível diferente do último
+// agendado no segmento. Sem histórico (ou segmento de 1 implantador) → o primeiro.
+function pickPreferred(eligible: Implanter[], last: Implanter | null): Implanter {
+  if (eligible.length === 1) return eligible[0]!;
+  return eligible.find((i) => i !== last) ?? eligible[0]!;
+}
+
 export async function getImplantationAvailability(
   now: Date,
   segment: Segment,
 ): Promise<ImplantationAvailability> {
-  const implanters = SEGMENT_IMPLANTERS[segment];
+  const eligible = SEGMENT_IMPLANTERS[segment];
+  const last = eligible.length > 1 ? await lastImplanterForSegment(segment) : null;
+  const preferred = pickPreferred(eligible, last);
 
-  const generated = implanters.map((implanter) => ({
+  const generated = eligible.map((implanter) => ({
     implanter,
     slots: generateImplantationSlots(now, implanter),
   }));
@@ -66,7 +74,7 @@ export async function getImplantationAvailability(
     allDates.length === 0
       ? []
       : await countsForWindow(
-          implanters,
+          eligible,
           allDates.reduce((a, b) => (a < b ? a : b)),
           allDates.reduce((a, b) => (a > b ? a : b)),
         );
@@ -74,15 +82,12 @@ export async function getImplantationAvailability(
   const countMap = new Map<string, number>();
   for (const c of counts) countMap.set(countKey(c.implanter, c.slotDate, c.slotKind), c.count);
 
-  const result: ImplanterAvailability[] = generated.map(({ implanter, slots }) => ({
-    implanter,
-    label: IMPLANTER_LABELS[implanter],
-    slots: slots
-      .map((slot) => {
-        const used = countMap.get(countKey(implanter, spDateString(slot.start), slot.kind)) ?? 0;
-        const remaining = slot.capacity - used;
-        return { slot, remaining };
-      })
+  const toAvailable = (implanter: Implanter, slots: ImplantationSlot[]): AvailableImplantationSlot[] =>
+    slots
+      .map((slot) => ({
+        slot,
+        remaining: slot.capacity - (countMap.get(countKey(implanter, spDateString(slot.start), slot.kind)) ?? 0),
+      }))
       .filter(({ remaining }) => remaining > 0)
       .map(({ slot, remaining }) => ({
         token: encodeImplantationToken({
@@ -98,8 +103,13 @@ export async function getImplantationAvailability(
         remaining,
         capacity: slot.capacity,
         startISO: slot.start.toISOString(),
-      })),
-  }));
+      }));
 
-  return { implanters: result };
+  const preferredSlots = generated.find((g) => g.implanter === preferred)?.slots ?? [];
+  const best = toAvailable(preferred, preferredSlots);
+  const others = generated
+    .filter((g) => g.implanter !== preferred)
+    .flatMap((g) => toAvailable(g.implanter, g.slots));
+
+  return { best, others };
 }

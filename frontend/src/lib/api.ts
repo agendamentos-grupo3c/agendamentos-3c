@@ -93,14 +93,11 @@ export interface ImplantationSlot {
   startISO: string;
 }
 
-export interface ImplanterAvailability {
-  implanter: Implanter;
-  label: string;
-  slots: ImplantationSlot[];
-}
-
+// Implantador omitido de propósito (anti-favoritismo): "best" = horários do
+// próximo da vez; "others" = demais elegíveis, revelados sob demanda.
 export interface ImplantationAvailability {
-  implanters: ImplanterAvailability[];
+  best: ImplantationSlot[];
+  others: ImplantationSlot[];
 }
 
 export interface ImplantationPayload {
