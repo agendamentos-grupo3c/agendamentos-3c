@@ -31,7 +31,7 @@ export function Dashboard() {
     <div className="space-y-8">
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">Bem-vindo(a) de volta,</p>
-        <h1 className="text-3xl font-bold tracking-tight">{firstName} 👋</h1>
+        <h1 className="text-3xl font-bold tracking-tight capitalize">{firstName}</h1>
         <p className="text-muted-foreground">O que você quer fazer agora?</p>
       </header>
 
