@@ -17,8 +17,13 @@ const SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 
 const clientId = process.env.GOOGLE_CLIENT_ID;
 const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+// URL pública registrada no Google (ex.: a do ngrok). Com ngrok é https sem
+// porta — o túnel encaminha para a porta local de escuta abaixo.
 const redirectUri =
   process.env.CALENDAR_TOKEN_REDIRECT_URI ?? 'http://localhost:53682/oauth2callback';
+// Porta LOCAL onde o servidor escuta (e para onde o ngrok encaminha). Desacoplada
+// da URL de redirect, já que a URL pública do ngrok não tem porta.
+const listenPort = Number(process.env.CALENDAR_TOKEN_PORT ?? '53682');
 const loginHint = process.env.CALENDAR_TOKEN_LOGIN_HINT ?? 'agendamentos@grupo-3c.com';
 
 function fail(message: string): never {
@@ -31,7 +36,6 @@ if (!clientId || !clientSecret) {
 }
 
 const callback = new URL(redirectUri);
-const port = Number(callback.port || '80');
 const state = randomBytes(16).toString('hex');
 
 const authUrl = new URL(AUTH_ENDPOINT);
@@ -77,7 +81,7 @@ const HTML = (msg: string): string =>
   `<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;padding:3rem;text-align:center">${msg}</body>`;
 
 const server = createServer((req, res) => {
-  const reqUrl = new URL(req.url ?? '/', `http://localhost:${port}`);
+  const reqUrl = new URL(req.url ?? '/', `http://localhost:${listenPort}`);
   if (reqUrl.pathname !== callback.pathname) {
     res.writeHead(404).end();
     return;
@@ -108,9 +112,10 @@ const server = createServer((req, res) => {
     });
 });
 
-server.listen(port, () => {
+server.listen(listenPort, () => {
   process.stdout.write(
-    `\nAbra esta URL no navegador e faça login como ${loginHint}:\n\n${authUrl.toString()}\n\n` +
+    `\nServidor local escutando em http://localhost:${listenPort} (encaminhe o ngrok para esta porta).\n\n` +
+      `Abra esta URL no navegador e faça login como ${loginHint}:\n\n${authUrl.toString()}\n\n` +
       `Aguardando o retorno em ${redirectUri} …\n`,
   );
 });
