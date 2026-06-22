@@ -14,6 +14,7 @@ import { authRoutes } from './routes/auth.js';
 import { availabilityRoutes } from './routes/availability.js';
 import { cardRoutes } from './routes/cards.js';
 import { healthRoutes } from './routes/health.js';
+import { implantationRoutes } from './routes/implantation.js';
 import { submitRoutes } from './routes/submit.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -82,6 +83,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(availabilityRoutes);
   await app.register(submitRoutes);
   await app.register(cardRoutes);
+  await app.register(implantationRoutes);
 
   return app;
 }

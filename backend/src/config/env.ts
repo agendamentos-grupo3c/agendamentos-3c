@@ -41,6 +41,16 @@ const schema = z.object({
   // ClickUp (Slack/WhatsApp são tratados pelo n8n reagindo à lista).
   CLICKUP_API_TOKEN: z.string().optional(),
   CLICKUP_LIST_ID: z.string().optional(),
+
+  // --- Implantação ---
+  // Agendas dos implantadores (e-mails). A conta agendamentos@ precisa de acesso
+  // de edição a todas (para adicionar convidados aos eventos de treinamento).
+  CALENDAR_GABRIELLE_ID: z.string().optional(),
+  CALENDAR_BRYAN_ID: z.string().optional(),
+  CALENDAR_LUAN_ID: z.string().optional(),
+  CALENDAR_WAGNER_ID: z.string().optional(),
+  // Webhook do n8n que dispara WhatsApp + e-mail ao confirmar a implantação.
+  N8N_IMPLANTACAO_WEBHOOK: z.string().url().optional(),
 });
 
 // Variáveis vazias (`CHAVE=`) são tratadas como não definidas, para que

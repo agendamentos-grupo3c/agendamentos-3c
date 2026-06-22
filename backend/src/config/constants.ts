@@ -117,3 +117,67 @@ export const SCHEDULING = {
     ],
   },
 } as const;
+
+// ===========================================================================
+// Implantação (time de Implantação) — fluxo distinto do de Integrações.
+// ===========================================================================
+
+export const IMPLANTERS = ['gabrielle', 'bryan', 'luan', 'wagner'] as const;
+export type Implanter = (typeof IMPLANTERS)[number];
+
+export const IMPLANTER_LABELS: Record<Implanter, string> = {
+  gabrielle: 'Gabrielle',
+  bryan: 'Bryan',
+  luan: 'Luan',
+  wagner: 'Wagner',
+};
+
+export const SEGMENTS = ['enterprise', 'middle', 'small', 'evolux'] as const;
+export type Segment = (typeof SEGMENTS)[number];
+
+export const SEGMENT_LABELS: Record<Segment, string> = {
+  enterprise: 'Enterprise',
+  middle: 'Middle',
+  small: 'Small',
+  evolux: 'Evolux',
+};
+
+// Segmento → implantadores que atendem (ordem = ordem de exibição das colunas).
+export const SEGMENT_IMPLANTERS: Record<Segment, Implanter[]> = {
+  enterprise: ['gabrielle'],
+  middle: ['gabrielle', 'bryan'],
+  small: ['bryan', 'wagner'],
+  evolux: ['luan'],
+};
+
+export const IMPLANTATION_SLOT_KINDS = ['coletiva_manha', 'individual', 'coletiva_tarde'] as const;
+export type ImplantationSlotKind = (typeof IMPLANTATION_SLOT_KINDS)[number];
+
+export const IMPLANTATION_SLOT_LABELS: Record<ImplantationSlotKind, string> = {
+  coletiva_manha: 'Coletiva (manhã)',
+  individual: 'Individual',
+  coletiva_tarde: 'Coletiva (tarde)',
+};
+
+export interface ImplantationSlotTemplate {
+  kind: ImplantationSlotKind;
+  start: string; // HH:MM em America/Sao_Paulo
+  end: string;
+  capacity: number;
+  // Restringe o slot a um implantador específico (individual = só Gabrielle).
+  onlyImplanter?: Implanter;
+}
+
+// Horários fixos diários. Coletivas têm 8 vagas; individual tem 1 e é exclusiva
+// da Gabrielle. A disponibilidade real (vagas restantes) vem do nosso banco.
+export const IMPLANTATION_SLOTS: ImplantationSlotTemplate[] = [
+  { kind: 'coletiva_manha', start: '09:40', end: '11:10', capacity: 8 },
+  { kind: 'individual', start: '13:20', end: '14:50', capacity: 1, onlyImplanter: 'gabrielle' },
+  { kind: 'coletiva_tarde', start: '15:30', end: '17:10', capacity: 8 },
+];
+
+export const IMPLANTATION = {
+  TIMEZONE: 'America/Sao_Paulo',
+  // Quantos dias ÚTEIS exibir: hoje + 2 dias úteis.
+  WEEKDAYS_AHEAD: 3,
+} as const;
