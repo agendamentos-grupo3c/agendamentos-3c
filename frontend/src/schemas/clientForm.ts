@@ -22,7 +22,9 @@ export const clientFormSchema = z.object({
     .email('E-mail do cliente inválido.')
     .max(TEXT_MAX),
   phone: z.string().trim().refine(isValidBrPhone, 'Telefone inválido. Informe DDD + número.'),
-  demandType: z.enum(['automacao', 'integracao']),
+  // O backend ainda distingue automação/integração; como o formulário unificou
+  // em "Integrações/Automações", enviamos um valor fixo (sem expor a escolha).
+  demandType: z.enum(['automacao', 'integracao']).default('integracao'),
 });
 
 export type ClientFormValues = z.infer<typeof clientFormSchema>;
