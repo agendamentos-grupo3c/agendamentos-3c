@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils';
 
 const NAV = [
   { href: '/', label: 'Início' },
-  { href: '/agendar', label: 'Novo agendamento' },
   { href: '/cards', label: 'Meus agendamentos' },
 ] as const;
 

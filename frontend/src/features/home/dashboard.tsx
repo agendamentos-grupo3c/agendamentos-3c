@@ -1,17 +1,25 @@
 'use client';
 
-import { ArrowRight, CalendarPlus, ListChecks } from 'lucide-react';
+import { ArrowRight, ListChecks, PlugZap, Rocket } from 'lucide-react';
 import Link from 'next/link';
 
 import { useCurrentUser } from '@/features/auth/auth-guard';
 import { cn } from '@/lib/utils';
 
+// Um card por formulário (escalável: novos tipos = novos cards aqui).
 const ACTIONS = [
   {
-    href: '/agendar',
-    title: 'Novo agendamento',
-    description: 'Preencha os dados do cliente e agende o kickoff da demanda.',
-    icon: CalendarPlus,
+    href: '/agendar/integracoes',
+    title: 'Integrações / Automações',
+    description: 'Agende o kickoff da integração ou automação do cliente.',
+    icon: PlugZap,
+    accent: true,
+  },
+  {
+    href: '/agendar/implantacao',
+    title: 'Implantação',
+    description: 'Agende o treinamento de implantação do cliente.',
+    icon: Rocket,
     accent: true,
   },
   {
