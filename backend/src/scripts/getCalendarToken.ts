@@ -13,7 +13,12 @@ import { randomBytes } from 'node:crypto';
 
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
-const SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+// Menor privilégio que ainda cobre os dois fluxos: events (criar evento /
+// adicionar convidado) + freebusy (ler disponibilidade no fluxo de Integrações).
+const SCOPE = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.freebusy',
+].join(' ');
 
 const clientId = process.env.GOOGLE_CLIENT_ID;
 const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
