@@ -99,8 +99,9 @@ export const FORM = {
 // Guilherme à tarde. Horários em America/Sao_Paulo. Tudo configurável aqui.
 export const SCHEDULING = {
   TIMEZONE: 'America/Sao_Paulo',
+  // Janela: hoje + DAYS_AHEAD dias corridos (ex.: hoje 22 → até 25). A regra de
+  // antecedência por meio-período (em schedulingPolicy) exclui o mesmo dia.
   DAYS_AHEAD: 3,
-  MIN_LEAD_MINUTES: 0,
   INCLUDE_WEEKENDS: false,
   SLOTS: {
     alana: [
