@@ -16,7 +16,7 @@ export function LoginCard({ errorCode }: { errorCode?: string }) {
         <Logo className="h-12" />
 
         <div className="space-y-1.5 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">Agendamento de Integrações</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Sistema de agendamentos</h1>
           <p className="text-sm text-muted-foreground">
             Acesso exclusivo a colaboradores Grupo&nbsp;3C.
           </p>
