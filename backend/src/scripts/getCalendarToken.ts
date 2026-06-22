@@ -19,8 +19,7 @@ const clientId = process.env.GOOGLE_CLIENT_ID;
 const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 // URL pública registrada no Google (ex.: a do ngrok). Com ngrok é https sem
 // porta — o túnel encaminha para a porta local de escuta abaixo.
-const redirectUri =
-  process.env.CALENDAR_TOKEN_REDIRECT_URI ?? 'http://localhost:53682/oauth2callback';
+const redirectUri = 'http://localhost:53682/auth/google/callback';
 // Porta LOCAL onde o servidor escuta (e para onde o ngrok encaminha). Desacoplada
 // da URL de redirect, já que a URL pública do ngrok não tem porta.
 const listenPort = Number(process.env.CALENDAR_TOKEN_PORT ?? '53682');
