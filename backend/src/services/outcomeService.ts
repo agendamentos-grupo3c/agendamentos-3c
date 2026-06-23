@@ -1,18 +1,29 @@
-import { CLICKUP_STATUS } from '../config/constants.js';
+import { CLICKUP_STATUS, SCHEDULING } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
-import { setBudgetField, updateTaskStatus } from '../integrations/clickup.js';
+import { addTaskComment, setBudgetField, updateTaskStatus } from '../integrations/clickup.js';
+import {
+  createEvent,
+  deleteEvent,
+  getBusyIntervals,
+  getCalendarConfig,
+} from '../integrations/googleCalendar.js';
+import { notifyReschedule } from '../integrations/n8n.js';
 import { canTransition } from '../lib/cardStateMachine.js';
 import { logger } from '../lib/logger.js';
+import type { SlotPayload } from '../lib/slotToken.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
   type Card,
   findById,
+  rescheduleCardRow,
   saveBudgetAndSend,
   transitionStatus,
+  UNIQUE_CONSTRAINTS,
+  uniqueViolationConstraint,
 } from '../repositories/cardRepository.js';
 import type { BudgetInput } from '../schemas/outcome.js';
 
-type OutcomeChannel = 'clickup';
+type OutcomeChannel = 'clickup' | 'n8n';
 
 export interface OutcomeResult {
   card: Card;
@@ -114,6 +125,152 @@ export async function sendBudget(
       logger.warn({ err, cardId: updated.id }, 'clickup budget outcome pending');
       pending.push('clickup');
     }
+  }
+
+  return { card: updated, pending };
+}
+
+const whenFmt = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: SCHEDULING.TIMEZONE,
+  dateStyle: 'short',
+  timeStyle: 'short',
+});
+
+function slotTaken(): AppError {
+  return new AppError({
+    code: 'SLOT_TAKEN',
+    statusCode: 409,
+    publicMessage: 'Esse horário acabou de ser ocupado. Escolha outro horário.',
+  });
+}
+
+// Reagendamento de um kickoff após no-show (cenário pós-reunião). Ação do
+// vendedor dono do card: novo horário do MESMO colaborador, mesma tarefa do
+// ClickUp. Cria o novo evento, libera o antigo e dispara o webhook de
+// reagendamento (n8n reenvia WhatsApp + e-mail ao cliente).
+export async function rescheduleCard(
+  cardId: string,
+  actorEmail: string,
+  slot: SlotPayload,
+): Promise<OutcomeResult> {
+  const card = await findById(cardId);
+  if (!card) throw cardNotFound();
+
+  // Só o vendedor dono reagenda o próprio card (autorização horizontal).
+  if (card.sellerEmail !== actorEmail) {
+    throw new AppError({
+      code: 'FORBIDDEN',
+      statusCode: 403,
+      publicMessage: 'Apenas o vendedor responsável pode reagendar este card.',
+    });
+  }
+
+  if (!canTransition(card.status, 'kickoff')) throw invalidTransition();
+
+  // Mantém o mesmo colaborador: o slot precisa pertencer à coluna do card.
+  if (slot.collaborator !== card.assignedTo) {
+    throw new AppError({
+      code: 'INVALID_SLOT',
+      statusCode: 400,
+      publicMessage: 'Horário inválido. Recarregue a agenda e tente novamente.',
+    });
+  }
+
+  const cfg = getCalendarConfig();
+  const calendarId = card.assignedTo === 'alana' ? cfg.alanaId : cfg.guilhermeId;
+  const start = new Date(slot.startISO);
+  const end = new Date(slot.endISO);
+
+  // Proteção contra corrida com mudanças externas na agenda (cenário 7.1.12).
+  const busy = await getBusyIntervals(calendarId, start, end);
+  const conflict = busy.some(
+    (b) => start.getTime() < new Date(b.end).getTime() && new Date(b.start).getTime() < end.getTime(),
+  );
+  if (conflict) throw slotTaken();
+
+  // Cria o novo evento (reenvia o convite ao cliente). Só depois reservamos o
+  // slot no banco — se a reserva falhar (corrida), apagamos o evento recém-criado.
+  const event = await createEvent({
+    calendarId,
+    summary: `Kickoff integração — ${card.companyName}`,
+    description: `Cliente: ${card.clientName}\nCRM: ${card.crmName}\nResumo: ${card.integrationSummary}\nVendedor: ${card.sellerEmail}\n(Reagendamento)`,
+    start,
+    end,
+    attendeeEmail: card.clientEmail,
+  });
+
+  let updated: Card | null;
+  try {
+    updated = await rescheduleCardRow(cardId, card.status, slot.startISO, event);
+  } catch (err) {
+    if (uniqueViolationConstraint(err) === UNIQUE_CONSTRAINTS.SLOT) {
+      await deleteEvent(calendarId, event.eventId).catch(() => undefined);
+      throw slotTaken();
+    }
+    await deleteEvent(calendarId, event.eventId).catch(() => undefined);
+    throw err;
+  }
+  if (!updated) {
+    // Outro processo já mudou o status: desfaz o evento órfão.
+    await deleteEvent(calendarId, event.eventId).catch(() => undefined);
+    throw invalidTransition();
+  }
+
+  // Libera o evento antigo (no horário do no-show). Best-effort: falha aqui não
+  // invalida o reagendamento já persistido.
+  if (card.googleEventId) {
+    try {
+      await deleteEvent(calendarId, card.googleEventId);
+    } catch (err) {
+      logger.warn({ err, cardId }, 'reschedule old event delete pending');
+    }
+  }
+
+  await insertAuditLog({
+    actorEmail,
+    action: 'card.rescheduled',
+    cardId,
+    fromStatus: card.status,
+    toStatus: 'kickoff',
+    metadata: { from: card.scheduledAt, to: slot.startISO },
+  });
+
+  const pending: OutcomeChannel[] = [];
+
+  // ClickUp: volta o status para kickoff e registra o reagendamento na MESMA
+  // tarefa (sem criar tarefa nova). Best-effort → pendência se falhar.
+  if (card.clickupTaskId) {
+    try {
+      await updateTaskStatus(card.clickupTaskId, CLICKUP_STATUS.kickoff!);
+      await addTaskComment(
+        card.clickupTaskId,
+        `Reunião reagendada para ${whenFmt.format(start)} (após no-show).`,
+      );
+    } catch (err) {
+      logger.warn({ err, cardId }, 'clickup reschedule pending');
+      pending.push('clickup');
+    }
+  }
+
+  // n8n: webhook dedicado reenvia WhatsApp + e-mail ao cliente com o novo horário.
+  try {
+    await notifyReschedule({
+      tipo: 'reagendamento',
+      companyName: updated.companyName,
+      clientName: updated.clientName,
+      clientEmail: updated.clientEmail,
+      clientPhoneE164: updated.clientPhoneE164,
+      clientId: updated.clientId,
+      collaborator: updated.assignedTo,
+      previousScheduledAt: card.scheduledAt,
+      newScheduledAt: slot.startISO,
+      meetingUrl: updated.meetingUrl,
+      sellerEmail: updated.sellerEmail,
+      sellerName: updated.sellerName,
+    });
+  } catch (err) {
+    logger.warn({ err, cardId }, 'n8n reschedule notify pending');
+    pending.push('n8n');
   }
 
   return { card: updated, pending };

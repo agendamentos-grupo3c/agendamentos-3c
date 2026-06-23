@@ -50,7 +50,7 @@ export function Dashboard() {
             href={href}
             className={cn(
               'group relative overflow-hidden rounded-3xl border bg-card p-6 shadow-sm transition-all',
-              'hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10',
+              'hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-lg',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             )}
           >
@@ -59,14 +59,14 @@ export function Dashboard() {
                 'mb-5 inline-flex size-12 items-center justify-center rounded-2xl transition-colors',
                 accent
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-secondary-foreground group-hover:bg-primary group-hover:text-primary-foreground',
+                  : 'bg-secondary text-secondary-foreground',
               )}
             >
               <Icon className="size-6" />
             </span>
             <h2 className="text-lg font-semibold">{title}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-            <ArrowRight className="mt-4 size-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+            <ArrowRight className="mt-4 size-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-foreground" />
           </Link>
         ))}
       </div>

@@ -186,6 +186,26 @@ export async function transitionStatus(
   return rows[0] ?? null;
 }
 
+// Reagendamento (no_show → kickoff): mesma tarefa/dados, novo horário e novo
+// evento de calendário. O WHERE com o status de origem garante atomicidade
+// (retorna null se outro processo já mudou o card). O índice único
+// (assigned_to, scheduled_at) — que ignora no_show — trava corrida pelo slot.
+export async function rescheduleCardRow(
+  id: string,
+  from: CardStatus,
+  scheduledAtISO: string,
+  event: { eventId: string; meetUrl?: string },
+): Promise<Card | null> {
+  const { rows } = await query<Card>(
+    `UPDATE cards
+       SET status = 'kickoff', scheduled_at = $3, google_event_id = $4, meeting_url = $5
+     WHERE id = $1 AND status = $2
+     RETURNING ${COLUMNS}`,
+    [id, from, scheduledAtISO, event.eventId, event.meetUrl ?? null],
+  );
+  return rows[0] ?? null;
+}
+
 export async function saveBudgetAndSend(
   id: string,
   fields: { requiredIntegration: string; budget: number; productionDeadline: string },

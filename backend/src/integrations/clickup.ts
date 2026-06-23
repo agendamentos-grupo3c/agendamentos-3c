@@ -79,6 +79,16 @@ export async function updateTaskStatus(taskId: string, status: string): Promise<
   );
 }
 
+// Registra um comentário na task (ex.: aviso de reagendamento). Mantém o
+// histórico na mesma tarefa, sem criar uma nova.
+export async function addTaskComment(taskId: string, text: string): Promise<void> {
+  await request(
+    `/task/${encodeURIComponent(taskId)}/comment`,
+    { method: 'POST', body: JSON.stringify({ comment_text: text, notify_all: false }) },
+    'CLICKUP_COMMENT_FAILED',
+  );
+}
+
 // Preenche o campo monetário "Valor do orçamento" (currency espera número).
 export async function setBudgetField(taskId: string, value: number): Promise<void> {
   await request(

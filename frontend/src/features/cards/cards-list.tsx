@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useCurrentUser } from '@/features/auth/auth-guard';
+import { RescheduleButton } from '@/features/cards/reschedule-dialog';
 import { api, type CardStatus, type CardSummary } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -193,9 +194,13 @@ function CardItem({
           </div>
         )}
 
-        {card.status === 'no_show' && (
-          <p className="text-sm text-muted-foreground">Cliente não compareceu ao kickoff.</p>
-        )}
+        {card.status === 'no_show' &&
+          (canEdit ? (
+            <p className="text-sm text-muted-foreground">Cliente não compareceu ao kickoff.</p>
+          ) : (
+            // Reagendamento é ação do vendedor dono do card (não do integrador).
+            <RescheduleButton card={card} onChanged={onChanged} />
+          ))}
       </CardContent>
     </Card>
   );

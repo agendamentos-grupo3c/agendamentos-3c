@@ -216,6 +216,26 @@ export async function createEvent(input: CreateEventInput): Promise<CreatedEvent
   return { eventId: json.id, meetUrl: json.hangoutLink, htmlLink: json.htmlLink };
 }
 
+// Remove um evento da agenda (usado no reagendamento, para apagar o evento do
+// horário antigo). sendUpdates=all avisa o convidado do cancelamento.
+export async function deleteEvent(calendarId: string, eventId: string): Promise<void> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+  );
+
+  // 410 = evento já removido: idempotente, tratamos como sucesso.
+  if (!res.ok && res.status !== 410) {
+    throw new AppError({
+      code: 'CALENDAR_EVENT_DELETE_FAILED',
+      statusCode: 502,
+      publicMessage: 'Não foi possível atualizar a agenda.',
+      message: `events.delete respondeu ${res.status}`,
+    });
+  }
+}
+
 // === Implantação: convidado em evento de treinamento já existente ===
 
 interface CalendarEvent {

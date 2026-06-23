@@ -76,7 +76,7 @@ export function ImplantationForm({
                             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                             field.value === value
                               ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary/40'
-                              : 'border-input text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                              : 'border-input text-muted-foreground hover:border-foreground/30 hover:bg-secondary/50 hover:text-foreground',
                           )}
                         >
                           {label}

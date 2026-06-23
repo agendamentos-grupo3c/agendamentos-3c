@@ -16,9 +16,15 @@ describe('canTransition', () => {
     expect(canTransition('kickoff', 'orcamento_enviado')).toBe(false);
   });
 
-  it('bloqueia transições a partir de estados terminais', () => {
+  it('permite reagendar a partir do no-show (no_show → kickoff)', () => {
+    expect(canTransition('no_show', 'kickoff')).toBe(true);
+  });
+
+  it('bloqueia transições inválidas do no-show e do estado terminal', () => {
     expect(canTransition('no_show', 'compareceu')).toBe(false);
+    expect(canTransition('no_show', 'orcamento_enviado')).toBe(false);
     expect(canTransition('orcamento_enviado', 'compareceu')).toBe(false);
+    expect(canTransition('orcamento_enviado', 'kickoff')).toBe(false);
   });
 
   it('bloqueia no-show a partir de compareceu', () => {

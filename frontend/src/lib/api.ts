@@ -54,11 +54,14 @@ export interface SubmitResponse {
 
 export type CardStatus = 'kickoff' | 'compareceu' | 'no_show' | 'orcamento_enviado';
 
+export type Collaborator = 'alana' | 'guilherme';
+
 export interface CardSummary {
   id: string;
   companyName: string;
   clientName: string;
   status: CardStatus;
+  assignedTo: Collaborator;
   scheduledAt: string | null;
   meetingUrl: string | null;
   requiredIntegration: string | null;
@@ -198,6 +201,9 @@ export const api = {
 
   sendBudget: (id: string, fields: BudgetFields): Promise<OutcomeResponse> =>
     csrfPost<OutcomeResponse>(`/cards/${id}/budget`, fields),
+
+  reschedule: (id: string, slotToken: string): Promise<OutcomeResponse> =>
+    csrfPost<OutcomeResponse>(`/cards/${id}/reschedule`, { slotToken }),
 
   // --- Implantação ---
   getImplantationAvailability: (segment: Segment): Promise<ImplantationAvailability> =>

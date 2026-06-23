@@ -55,7 +55,7 @@ function SlotGrid({
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   slot.token === selectedToken
                     ? 'border-primary bg-primary/10 ring-1 ring-primary/40'
-                    : 'border-input hover:border-primary/40',
+                    : 'border-input hover:border-foreground/30 hover:bg-secondary/50',
                 )}
               >
                 <span className="text-sm font-medium">{slot.timeLabel}</span>

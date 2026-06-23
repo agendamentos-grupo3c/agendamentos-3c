@@ -3,11 +3,12 @@ import type { CardStatus } from '../config/constants.js';
 // Máquina de estados do card (seção 7.8). Transições válidas:
 //   kickoff → compareceu | no_show
 //   compareceu → orcamento_enviado
-// Estados terminais: no_show, orcamento_enviado.
+//   no_show → kickoff (reagendamento pelo vendedor — mesma tarefa, novo horário)
+// Estado terminal: orcamento_enviado.
 const TRANSITIONS: Record<CardStatus, readonly CardStatus[]> = {
   kickoff: ['compareceu', 'no_show'],
   compareceu: ['orcamento_enviado'],
-  no_show: [],
+  no_show: ['kickoff'],
   orcamento_enviado: [],
 };
 
