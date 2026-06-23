@@ -7,7 +7,6 @@ import {
   getBusyIntervals,
   getCalendarConfig,
 } from '../integrations/googleCalendar.js';
-import { notifyReschedule } from '../integrations/n8n.js';
 import { canTransition } from '../lib/cardStateMachine.js';
 import { logger } from '../lib/logger.js';
 import { getCollaboratorForEmail } from '../lib/roles.js';
@@ -25,7 +24,7 @@ import {
 } from '../repositories/cardRepository.js';
 import type { BudgetInput } from '../schemas/outcome.js';
 
-type OutcomeChannel = 'clickup' | 'n8n';
+type OutcomeChannel = 'clickup';
 
 export interface OutcomeResult {
   card: Card;
@@ -199,8 +198,9 @@ function slotTaken(): AppError {
 
 // Reagendamento de um kickoff após no-show (cenário pós-reunião). Ação do
 // vendedor dono do card: novo horário do MESMO colaborador, mesma tarefa do
-// ClickUp. Cria o novo evento, libera o antigo e dispara o webhook de
-// reagendamento (n8n reenvia WhatsApp + e-mail ao cliente).
+// ClickUp. Cria o novo evento (reenvia o convite ao cliente), libera o antigo e
+// volta o status para "kickoff" no ClickUp — o fluxo n8n reage à transição
+// "no show → kickoff" e notifica o time como reagendamento.
 export async function rescheduleCard(
   cardId: string,
   actorEmail: string,
@@ -290,8 +290,9 @@ export async function rescheduleCard(
 
   const pending: OutcomeChannel[] = [];
 
-  // ClickUp: volta o status para kickoff e registra o reagendamento na MESMA
-  // tarefa (sem criar tarefa nova). Best-effort → pendência se falhar.
+  // ClickUp: volta o status para kickoff (o n8n reage e notifica como
+  // reagendamento) e registra o aviso na MESMA tarefa, sem criar tarefa nova.
+  // Best-effort → pendência se falhar.
   if (card.clickupTaskId) {
     try {
       await updateTaskStatus(card.clickupTaskId, CLICKUP_STATUS.kickoff!);
@@ -303,27 +304,6 @@ export async function rescheduleCard(
       logger.warn({ err, cardId }, 'clickup reschedule pending');
       pending.push('clickup');
     }
-  }
-
-  // n8n: webhook dedicado reenvia WhatsApp + e-mail ao cliente com o novo horário.
-  try {
-    await notifyReschedule({
-      tipo: 'reagendamento',
-      companyName: updated.companyName,
-      clientName: updated.clientName,
-      clientEmail: updated.clientEmail,
-      clientPhoneE164: updated.clientPhoneE164,
-      clientId: updated.clientId,
-      collaborator: updated.assignedTo,
-      previousScheduledAt: card.scheduledAt,
-      newScheduledAt: slot.startISO,
-      meetingUrl: updated.meetingUrl,
-      sellerEmail: updated.sellerEmail,
-      sellerName: updated.sellerName,
-    });
-  } catch (err) {
-    logger.warn({ err, cardId }, 'n8n reschedule notify pending');
-    pending.push('n8n');
   }
 
   return { card: updated, pending };

@@ -49,25 +49,3 @@ async function postWebhook(
 export async function notifyImplantation(payload: ImplantationNotification): Promise<void> {
   await postWebhook(env.N8N_IMPLANTACAO_WEBHOOK, payload, 'N8N_IMPLANTACAO_WEBHOOK ausente.');
 }
-
-// Notificação de reagendamento de kickoff (Integrações): o fluxo n8n reage e
-// reenvia WhatsApp + e-mail ao cliente com o novo horário. `tipo` permite ao
-// n8n distinguir o reagendamento de um agendamento novo.
-export interface RescheduleNotification {
-  tipo: 'reagendamento';
-  companyName: string;
-  clientName: string;
-  clientEmail: string;
-  clientPhoneE164: string;
-  clientId: string | null;
-  collaborator: string;
-  previousScheduledAt: string | null;
-  newScheduledAt: string;
-  meetingUrl: string | null;
-  sellerEmail: string;
-  sellerName: string | null;
-}
-
-export async function notifyReschedule(payload: RescheduleNotification): Promise<void> {
-  await postWebhook(env.N8N_REAGENDAMENTO_WEBHOOK, payload, 'N8N_REAGENDAMENTO_WEBHOOK ausente.');
-}

@@ -50,9 +50,6 @@ const schema = z.object({
   CALENDAR_WAGNER_ID: z.string().optional(),
   // Webhook do n8n que dispara WhatsApp + e-mail ao confirmar a implantação.
   N8N_IMPLANTACAO_WEBHOOK: z.string().url().optional(),
-  // Webhook do n8n que reenvia WhatsApp + e-mail ao cliente quando um kickoff
-  // de Integrações é reagendado (após no-show).
-  N8N_REAGENDAMENTO_WEBHOOK: z.string().url().optional(),
 });
 
 // Variáveis vazias (`CHAVE=`) são tratadas como não definidas, para que
