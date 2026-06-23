@@ -1,4 +1,4 @@
-import { CLICKUP_STATUS, SCHEDULING } from '../config/constants.js';
+import { CLICKUP_CANCELED_STATUS, CLICKUP_STATUS, SCHEDULING } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
 import { addTaskComment, setBudgetField, updateTaskStatus } from '../integrations/clickup.js';
 import {
@@ -10,10 +10,12 @@ import {
 import { notifyReschedule } from '../integrations/n8n.js';
 import { canTransition } from '../lib/cardStateMachine.js';
 import { logger } from '../lib/logger.js';
+import { getCollaboratorForEmail } from '../lib/roles.js';
 import type { SlotPayload } from '../lib/slotToken.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
   type Card,
+  deleteCard,
   findById,
   rescheduleCardRow,
   saveBudgetAndSend,
@@ -128,6 +130,57 @@ export async function sendBudget(
   }
 
   return { card: updated, pending };
+}
+
+// Exclusão de um agendamento pelo integrador dono da coluna. O lead vai para a
+// etapa "cancelado" no ClickUp (registro preservado lá) e o card é removido da
+// nossa base, liberando o slot e cancelando o convite do cliente.
+export async function deleteCardAsIntegrator(cardId: string, actorEmail: string): Promise<void> {
+  const card = await findById(cardId);
+  if (!card) throw cardNotFound();
+
+  // Autorização horizontal: cada integrador só age na própria coluna.
+  if (getCollaboratorForEmail(actorEmail) !== card.assignedTo) {
+    throw new AppError({
+      code: 'FORBIDDEN',
+      statusCode: 403,
+      publicMessage: 'Você só pode excluir agendamentos da sua coluna.',
+    });
+  }
+
+  // ClickUp → "cancelado" PRIMEIRO: se falhar, abortamos sem excluir nada, para
+  // o integrador poder tentar de novo (nada fica em estado inconsistente).
+  if (card.clickupTaskId) {
+    await updateTaskStatus(card.clickupTaskId, CLICKUP_CANCELED_STATUS);
+  }
+
+  // Remove o evento do calendário (cancela o convite do cliente). Best-effort.
+  if (card.googleEventId) {
+    const cfg = getCalendarConfig();
+    const calendarId = card.assignedTo === 'alana' ? cfg.alanaId : cfg.guilhermeId;
+    try {
+      await deleteEvent(calendarId, card.googleEventId);
+    } catch (err) {
+      logger.warn({ err, cardId }, 'delete card calendar event pending');
+    }
+  }
+
+  // Auditoria antes do delete: o card_id é anulado (ON DELETE SET NULL), então
+  // guardamos os dados identificadores no metadata.
+  await insertAuditLog({
+    actorEmail,
+    action: 'card.deleted',
+    cardId,
+    fromStatus: card.status,
+    metadata: {
+      companyName: card.companyName,
+      clientName: card.clientName,
+      scheduledAt: card.scheduledAt,
+      assignedTo: card.assignedTo,
+    },
+  });
+
+  await deleteCard(cardId);
 }
 
 const whenFmt = new Intl.DateTimeFormat('pt-BR', {

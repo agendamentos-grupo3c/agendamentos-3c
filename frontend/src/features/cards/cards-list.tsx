@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useCurrentUser } from '@/features/auth/auth-guard';
+import { DeleteCardButton } from '@/features/cards/delete-card-dialog';
 import { RescheduleButton } from '@/features/cards/reschedule-dialog';
 import { api, type CardStatus, type CardSummary } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -142,7 +143,10 @@ function CardItem({
             {card.scheduledAt ? ` · ${whenFmt.format(new Date(card.scheduledAt))}` : ''}
           </p>
         </div>
-        <StatusBadge status={card.status} />
+        <div className="flex items-center gap-1">
+          <StatusBadge status={card.status} />
+          {canEdit && <DeleteCardButton card={card} onChanged={onChanged} />}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {card.status === 'kickoff' &&
@@ -206,6 +210,19 @@ function CardItem({
   );
 }
 
+// Separação por desfecho: leads ainda sem compareceu/no-show (kickoff) vs. os
+// que já receberam um status. Facilita a fila de ação dos integradores.
+type StatusGroup = 'pending' | 'done' | 'all';
+
+const GROUP_DEFS: { key: StatusGroup; label: string }[] = [
+  { key: 'pending', label: 'Aguardando desfecho' },
+  { key: 'done', label: 'Com desfecho' },
+  { key: 'all', label: 'Todos' },
+];
+
+const inGroup = (status: CardStatus, group: StatusGroup): boolean =>
+  group === 'all' ? true : group === 'pending' ? status === 'kickoff' : status !== 'kickoff';
+
 export function CardsList() {
   const user = useCurrentUser();
   const canEdit = user.role === 'integrator';
@@ -215,6 +232,7 @@ export function CardsList() {
   const [query, setQuery] = React.useState('');
   const [from, setFrom] = React.useState('');
   const [to, setTo] = React.useState('');
+  const [group, setGroup] = React.useState<StatusGroup>('pending');
 
   const load = React.useCallback(() => {
     api
@@ -229,6 +247,7 @@ export function CardsList() {
     if (!cards) return [];
     const q = query.trim().toLowerCase();
     return cards.filter((card) => {
+      if (!inGroup(card.status, group)) return false;
       if (q && !card.companyName.toLowerCase().includes(q)) return false;
       if (from || to) {
         if (!card.scheduledAt) return false;
@@ -238,7 +257,17 @@ export function CardsList() {
       }
       return true;
     });
-  }, [cards, query, from, to]);
+  }, [cards, query, from, to, group]);
+
+  const groupCounts = React.useMemo(() => {
+    const counts: Record<StatusGroup, number> = { pending: 0, done: 0, all: 0 };
+    for (const card of cards ?? []) {
+      counts.all++;
+      if (card.status === 'kickoff') counts.pending++;
+      else counts.done++;
+    }
+    return counts;
+  }, [cards]);
 
   if (error) {
     return <p className="text-sm text-destructive">Não foi possível carregar os agendamentos.</p>;
@@ -251,6 +280,27 @@ export function CardsList() {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-1 rounded-xl border bg-muted/40 p-1">
+        {GROUP_DEFS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setGroup(key)}
+            aria-pressed={group === key}
+            className={cn(
+              'flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              group === key
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {label}
+            <span className="ml-1.5 text-xs text-muted-foreground">{groupCounts[key]}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1 space-y-1.5">
           <Label htmlFor="card-search">Buscar por empresa</Label>

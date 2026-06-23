@@ -9,6 +9,7 @@ import { requireIntegrator } from '../middlewares/requireIntegrator.js';
 import { type Card, listByCollaborator, listBySeller } from '../repositories/cardRepository.js';
 import { budgetSchema } from '../schemas/outcome.js';
 import {
+  deleteCardAsIntegrator,
   markAttended,
   markNoShow,
   rescheduleCard,
@@ -103,6 +104,17 @@ export async function cardRoutes(app: FastifyInstance): Promise<void> {
         });
       }
       return outcomeResponse(await rescheduleCard(id, req.user!.email, slot));
+    },
+  );
+
+  // Exclusão de agendamento: somente integradores; o card vira "cancelado" no
+  // ClickUp e é removido da base. 204 sem corpo.
+  app.delete(
+    '/cards/:id',
+    { preHandler: [requireAuth, app.csrfProtection, requireIntegrator] },
+    async (req, reply) => {
+      await deleteCardAsIntegrator(parseId(req.params), req.user!.email);
+      return reply.status(204).send();
     },
   );
 }

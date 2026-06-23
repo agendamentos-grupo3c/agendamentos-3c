@@ -13,7 +13,7 @@ export const RATE_LIMIT = {
 } as const;
 
 export const CORS = {
-  ALLOWED_METHODS: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+  ALLOWED_METHODS: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   // Idempotency-Key (Passo 8) e X-CSRF-Token (Passo 4) já liberados aqui.
   ALLOWED_HEADERS: ['Content-Type', 'Idempotency-Key', 'X-CSRF-Token'],
 } as const;
@@ -52,6 +52,10 @@ export const CLICKUP_STATUS: Record<CardStatus, string | null> = {
   no_show: 'no show',
   orcamento_enviado: 'orçamento enviado',
 };
+
+// Status da lista do ClickUp ao excluir um agendamento (deve casar EXATAMENTE
+// com o nome da etapa "cancelado" na lista).
+export const CLICKUP_CANCELED_STATUS = 'cancelado';
 
 export const CLICKUP = {
   FIELDS: {

@@ -166,11 +166,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-// POST que altera estado: busca o token CSRF e o reenvia em X-CSRF-Token.
-async function csrfPost<T>(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
+// Requisição que altera estado: busca o token CSRF e o reenvia em X-CSRF-Token.
+async function csrfSend<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   const { csrfToken } = await request<{ csrfToken: string }>('/auth/csrf');
   return request<T>(path, {
-    method: 'POST',
+    method,
     headers: {
       'X-CSRF-Token': csrfToken,
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -179,6 +184,9 @@ async function csrfPost<T>(path: string, body?: unknown, extraHeaders?: Record<s
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 }
+
+const csrfPost = <T>(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> =>
+  csrfSend<T>('POST', path, body, extraHeaders);
 
 export const api = {
   // URL de início do login (navegação de página inteira, não fetch).
@@ -204,6 +212,8 @@ export const api = {
 
   reschedule: (id: string, slotToken: string): Promise<OutcomeResponse> =>
     csrfPost<OutcomeResponse>(`/cards/${id}/reschedule`, { slotToken }),
+
+  deleteCard: (id: string): Promise<void> => csrfSend<void>('DELETE', `/cards/${id}`),
 
   // --- Implantação ---
   getImplantationAvailability: (segment: Segment): Promise<ImplantationAvailability> =>
