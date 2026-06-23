@@ -5,13 +5,13 @@ import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
-import { ApiError, api, type AvailableSlot, type CardSummary } from '@/lib/api';
+import { ApiError, api, type AvailableSlot, type Availability, type CardSummary } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-const COLLABORATOR_LABEL: Record<CardSummary['assignedTo'], string> = {
-  alana: 'Alana Gaspar (manhã)',
-  guilherme: 'Guilherme Ribeiro (tarde)',
-};
+const COLUMNS: { key: keyof Availability; label: string }[] = [
+  { key: 'alana', label: 'Alana Gaspar (manhã)' },
+  { key: 'guilherme', label: 'Guilherme Ribeiro (tarde)' },
+];
 
 function groupByDate(slots: AvailableSlot[]): [string, AvailableSlot[]][] {
   const map = new Map<string, AvailableSlot[]>();
@@ -24,20 +24,20 @@ function groupByDate(slots: AvailableSlot[]): [string, AvailableSlot[]][] {
 }
 
 function SlotPicker({ card, onDone }: { card: CardSummary; onDone: () => void }) {
-  const [slots, setSlots] = React.useState<AvailableSlot[] | null>(null);
+  const [data, setData] = React.useState<Availability | null>(null);
   const [error, setError] = React.useState(false);
-  const [selected, setSelected] = React.useState<AvailableSlot | null>(null);
+  const [selected, setSelected] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(null);
 
   const load = React.useCallback(() => {
-    setSlots(null);
+    setData(null);
     setError(false);
     api
       .getAvailability()
-      .then((d) => setSlots(d[card.assignedTo]))
+      .then(setData)
       .catch(() => setError(true));
-  }, [card.assignedTo]);
+  }, []);
 
   React.useEffect(() => load(), [load]);
 
@@ -46,7 +46,7 @@ function SlotPicker({ card, onDone }: { card: CardSummary; onDone: () => void })
     setBusy(true);
     setNotice(null);
     try {
-      await api.reschedule(card.id, selected.token);
+      await api.reschedule(card.id, selected);
       onDone();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'SLOT_TAKEN') {
@@ -71,16 +71,12 @@ function SlotPicker({ card, onDone }: { card: CardSummary; onDone: () => void })
     );
   }
 
-  if (!slots) {
+  if (!data) {
     return <p className="text-sm text-muted-foreground">Carregando horários…</p>;
   }
 
   return (
     <div className="space-y-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {COLLABORATOR_LABEL[card.assignedTo]}
-      </p>
-
       {notice && (
         <p
           role="alert"
@@ -90,31 +86,41 @@ function SlotPicker({ card, onDone }: { card: CardSummary; onDone: () => void })
         </p>
       )}
 
-      {slots.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sem horários livres nos próximos dias.</p>
-      ) : (
-        <div className="space-y-4">
-          {groupByDate(slots).map(([dateLabel, daySlots]) => (
-            <div key={dateLabel} className="space-y-2">
-              <p className="text-xs font-medium uppercase text-muted-foreground">{dateLabel}</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {daySlots.map((slot) => (
-                  <Button
-                    key={slot.token}
-                    type="button"
-                    variant={slot.token === selected?.token ? 'default' : 'outline'}
-                    size="sm"
-                    className={cn(slot.token === selected?.token && 'ring-1 ring-ring')}
-                    onClick={() => setSelected(slot)}
-                  >
-                    {slot.timeLabel}
-                  </Button>
-                ))}
-              </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {COLUMNS.map(({ key, label }) => {
+          const slots = data[key];
+          return (
+            <div key={key} className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {label}
+              </p>
+              {slots.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sem horários livres nos próximos dias.</p>
+              ) : (
+                groupByDate(slots).map(([dateLabel, daySlots]) => (
+                  <div key={dateLabel} className="space-y-2">
+                    <p className="text-xs font-medium uppercase text-muted-foreground">{dateLabel}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {daySlots.map((slot) => (
+                        <Button
+                          key={slot.token}
+                          type="button"
+                          variant={slot.token === selected ? 'default' : 'outline'}
+                          size="sm"
+                          className={cn(slot.token === selected && 'ring-1 ring-ring')}
+                          onClick={() => setSelected(slot.token)}
+                        >
+                          {slot.timeLabel}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
       <div className="flex items-center justify-end gap-2 border-t pt-4">
         <Button disabled={!selected || busy} onClick={confirm}>
@@ -137,7 +143,7 @@ export function RescheduleButton({
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
-        Cliente não compareceu ao kickoff. Você pode reagendar a reunião.
+        Cliente não compareceu ao kickoff. Você pode reagendar a reunião com qualquer integrador.
       </p>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <CalendarClock className="size-4" />
@@ -148,7 +154,8 @@ export function RescheduleButton({
         open={open}
         onClose={() => setOpen(false)}
         title="Reagendar kickoff"
-        description="Escolha um novo horário. O cliente recebe o convite atualizado por e-mail e WhatsApp."
+        description="Escolha um novo horário com Alana ou Guilherme. O cliente recebe o convite atualizado por e-mail e WhatsApp."
+        className="sm:max-w-2xl"
       >
         <SlotPicker
           card={card}

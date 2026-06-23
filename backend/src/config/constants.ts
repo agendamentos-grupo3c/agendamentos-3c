@@ -73,6 +73,12 @@ export const CLICKUP = {
     automacao: 'c6456e35-cd31-4911-8c2c-6925ca1e4879',
     integracao: '06b27c32-3a29-4f51-8d68-77f2f374bc0a',
   },
+  // ID de usuário no ClickUp de cada integrador, usado como "responsável"
+  // (assignee) da task. Trocado quando o card é reagendado para o outro.
+  INTEGRATOR_USER_ID: {
+    alana: 230612467,
+    guilherme: 302428138,
+  },
 } as const;
 
 export const AUTH = {

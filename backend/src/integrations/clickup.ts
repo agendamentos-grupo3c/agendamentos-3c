@@ -79,6 +79,20 @@ export async function updateTaskStatus(taskId: string, status: string): Promise<
   );
 }
 
+// Troca o responsável (assignee) da task: adiciona o novo integrador e remove o
+// anterior. Usado no reagendamento quando muda o integrador.
+export async function changeTaskAssignee(
+  taskId: string,
+  addUserId: number,
+  remUserIds: number[],
+): Promise<void> {
+  await request(
+    `/task/${encodeURIComponent(taskId)}`,
+    { method: 'PUT', body: JSON.stringify({ assignees: { add: [addUserId], rem: remUserIds } }) },
+    'CLICKUP_ASSIGNEE_FAILED',
+  );
+}
+
 // Registra um comentário na task (ex.: aviso de reagendamento). Mantém o
 // histórico na mesma tarefa, sem criar uma nova.
 export async function addTaskComment(taskId: string, text: string): Promise<void> {

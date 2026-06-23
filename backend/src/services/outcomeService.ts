@@ -1,6 +1,11 @@
-import { CLICKUP_CANCELED_STATUS, CLICKUP_STATUS, SCHEDULING } from '../config/constants.js';
+import { CLICKUP, CLICKUP_CANCELED_STATUS, CLICKUP_STATUS, SCHEDULING } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
-import { addTaskComment, setBudgetField, updateTaskStatus } from '../integrations/clickup.js';
+import {
+  addTaskComment,
+  changeTaskAssignee,
+  setBudgetField,
+  updateTaskStatus,
+} from '../integrations/clickup.js';
 import {
   createEvent,
   deleteEvent,
@@ -188,6 +193,11 @@ const whenFmt = new Intl.DateTimeFormat('pt-BR', {
   timeStyle: 'short',
 });
 
+const COLLABORATOR_LABELS: Record<Card['assignedTo'], string> = {
+  alana: 'Alana Gaspar',
+  guilherme: 'Guilherme Ribeiro',
+};
+
 function slotTaken(): AppError {
   return new AppError({
     code: 'SLOT_TAKEN',
@@ -197,10 +207,11 @@ function slotTaken(): AppError {
 }
 
 // Reagendamento de um kickoff após no-show (cenário pós-reunião). Ação do
-// vendedor dono do card: novo horário do MESMO colaborador, mesma tarefa do
-// ClickUp. Cria o novo evento (reenvia o convite ao cliente), libera o antigo e
-// volta o status para "kickoff" no ClickUp — o fluxo n8n reage à transição
-// "no show → kickoff" e notifica o time como reagendamento.
+// vendedor dono do card: pode escolher QUALQUER integrador (em kickoff ainda não
+// houve contato), mesma tarefa do ClickUp. Cria o novo evento na agenda do
+// integrador escolhido (reenvia o convite ao cliente), libera o antigo, atualiza
+// o responsável (no banco e no ClickUp) e volta o status para "kickoff" — o fluxo
+// n8n reage à transição "no show → kickoff" e notifica o time como reagendamento.
 export async function rescheduleCard(
   cardId: string,
   actorEmail: string,
@@ -220,31 +231,27 @@ export async function rescheduleCard(
 
   if (!canTransition(card.status, 'kickoff')) throw invalidTransition();
 
-  // Mantém o mesmo colaborador: o slot precisa pertencer à coluna do card.
-  if (slot.collaborator !== card.assignedTo) {
-    throw new AppError({
-      code: 'INVALID_SLOT',
-      statusCode: 400,
-      publicMessage: 'Horário inválido. Recarregue a agenda e tente novamente.',
-    });
-  }
-
   const cfg = getCalendarConfig();
-  const calendarId = card.assignedTo === 'alana' ? cfg.alanaId : cfg.guilhermeId;
+  const calendarFor = (c: typeof card.assignedTo): string =>
+    c === 'alana' ? cfg.alanaId : cfg.guilhermeId;
+  const oldCalendarId = calendarFor(card.assignedTo);
+  const newCalendarId = calendarFor(slot.collaborator);
+  const collaboratorChanged = slot.collaborator !== card.assignedTo;
   const start = new Date(slot.startISO);
   const end = new Date(slot.endISO);
 
   // Proteção contra corrida com mudanças externas na agenda (cenário 7.1.12).
-  const busy = await getBusyIntervals(calendarId, start, end);
+  const busy = await getBusyIntervals(newCalendarId, start, end);
   const conflict = busy.some(
     (b) => start.getTime() < new Date(b.end).getTime() && new Date(b.start).getTime() < end.getTime(),
   );
   if (conflict) throw slotTaken();
 
-  // Cria o novo evento (reenvia o convite ao cliente). Só depois reservamos o
-  // slot no banco — se a reserva falhar (corrida), apagamos o evento recém-criado.
+  // Cria o novo evento na agenda do integrador escolhido (reenvia o convite ao
+  // cliente). Só depois reservamos o slot no banco — se a reserva falhar
+  // (corrida), apagamos o evento recém-criado.
   const event = await createEvent({
-    calendarId,
+    calendarId: newCalendarId,
     summary: `Kickoff integração — ${card.companyName}`,
     description: `Cliente: ${card.clientName}\nCRM: ${card.crmName}\nResumo: ${card.integrationSummary}\nVendedor: ${card.sellerEmail}\n(Reagendamento)`,
     start,
@@ -254,26 +261,26 @@ export async function rescheduleCard(
 
   let updated: Card | null;
   try {
-    updated = await rescheduleCardRow(cardId, card.status, slot.startISO, event);
+    updated = await rescheduleCardRow(cardId, card.status, slot.startISO, slot.collaborator, event);
   } catch (err) {
     if (uniqueViolationConstraint(err) === UNIQUE_CONSTRAINTS.SLOT) {
-      await deleteEvent(calendarId, event.eventId).catch(() => undefined);
+      await deleteEvent(newCalendarId, event.eventId).catch(() => undefined);
       throw slotTaken();
     }
-    await deleteEvent(calendarId, event.eventId).catch(() => undefined);
+    await deleteEvent(newCalendarId, event.eventId).catch(() => undefined);
     throw err;
   }
   if (!updated) {
     // Outro processo já mudou o status: desfaz o evento órfão.
-    await deleteEvent(calendarId, event.eventId).catch(() => undefined);
+    await deleteEvent(newCalendarId, event.eventId).catch(() => undefined);
     throw invalidTransition();
   }
 
-  // Libera o evento antigo (no horário do no-show). Best-effort: falha aqui não
-  // invalida o reagendamento já persistido.
+  // Libera o evento antigo (no horário do no-show, na agenda do integrador
+  // anterior). Best-effort: falha aqui não invalida o reagendamento persistido.
   if (card.googleEventId) {
     try {
-      await deleteEvent(calendarId, card.googleEventId);
+      await deleteEvent(oldCalendarId, card.googleEventId);
     } catch (err) {
       logger.warn({ err, cardId }, 'reschedule old event delete pending');
     }
@@ -298,8 +305,18 @@ export async function rescheduleCard(
       await updateTaskStatus(card.clickupTaskId, CLICKUP_STATUS.kickoff!);
       await addTaskComment(
         card.clickupTaskId,
-        `Reunião reagendada para ${whenFmt.format(start)} (após no-show).`,
+        collaboratorChanged
+          ? `Reunião reagendada para ${whenFmt.format(start)} com ${COLLABORATOR_LABELS[slot.collaborator]} (após no-show).`
+          : `Reunião reagendada para ${whenFmt.format(start)} (após no-show).`,
       );
+      // Troca o responsável no ClickUp quando muda o integrador.
+      if (collaboratorChanged) {
+        await changeTaskAssignee(
+          card.clickupTaskId,
+          CLICKUP.INTEGRATOR_USER_ID[slot.collaborator],
+          [CLICKUP.INTEGRATOR_USER_ID[card.assignedTo]],
+        );
+      }
     } catch (err) {
       logger.warn({ err, cardId }, 'clickup reschedule pending');
       pending.push('clickup');
