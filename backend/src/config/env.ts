@@ -48,8 +48,12 @@ const schema = z.object({
   CALENDAR_GABRIELLE_ID: z.string().optional(),
   CALENDAR_BRYAN_ID: z.string().optional(),
   CALENDAR_WAGNER_ID: z.string().optional(),
-  // Webhook do n8n que dispara WhatsApp + e-mail ao confirmar a implantação.
+  // Webhook do n8n da implantação (legado): a implantação migra para o HubSpot;
+  // mantido apenas como fallback durante a transição.
   N8N_IMPLANTACAO_WEBHOOK: z.string().url().optional(),
+  // HubSpot (implantação): Private App token usado para criar a meeting e
+  // atualizar suas observações. Exigido quando a Fase A do HubSpot entrar.
+  HUBSPOT_TOKEN: z.string().optional(),
 });
 
 // Variáveis vazias (`CHAVE=`) são tratadas como não definidas, para que

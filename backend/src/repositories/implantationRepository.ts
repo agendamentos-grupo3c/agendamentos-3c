@@ -24,6 +24,7 @@ export interface Implantation {
   sellerName: string | null;
   idempotencyKey: string | null;
   n8nNotifiedAt: string | null;
+  hubspotMeetingId: string | null;
 }
 
 const COLUMNS = `
@@ -46,7 +47,8 @@ const COLUMNS = `
   seller_email AS "sellerEmail",
   seller_name AS "sellerName",
   idempotency_key AS "idempotencyKey",
-  n8n_notified_at AS "n8nNotifiedAt"
+  n8n_notified_at AS "n8nNotifiedAt",
+  hubspot_meeting_id AS "hubspotMeetingId"
 `;
 
 export const UNIQUE_CONSTRAINTS = {
@@ -203,6 +205,15 @@ export async function setEvent(
 
 export async function markN8nNotified(id: string): Promise<void> {
   await query(`UPDATE implantations SET n8n_notified_at = now() WHERE id = $1`, [id]);
+}
+
+// Guarda o id da meeting criada no HubSpot (para atualizar observações depois).
+export async function setHubspotMeetingId(id: string, meetingId: string): Promise<Implantation> {
+  const { rows } = await query<Implantation>(
+    `UPDATE implantations SET hubspot_meeting_id = $2 WHERE id = $1 RETURNING ${COLUMNS}`,
+    [id, meetingId],
+  );
+  return rows[0]!;
 }
 
 // Transições atômicas: o WHERE com status de origem 'agendado' barra estados

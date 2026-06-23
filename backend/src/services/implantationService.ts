@@ -1,7 +1,6 @@
 import { IMPLANTATION_SLOTS, SEGMENT_IMPLANTERS, type Segment } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
 import { addGuestToTraining, getImplanterCalendarId } from '../integrations/googleCalendar.js';
-import { notifyImplantation } from '../integrations/n8n.js';
 import { spDateString } from '../lib/implantationPolicy.js';
 import { logger } from '../lib/logger.js';
 import { toE164 } from '../lib/phone.js';
@@ -12,12 +11,11 @@ import {
   UNIQUE_CONSTRAINTS,
   findByIdempotencyKey,
   insertWithCapacity,
-  markN8nNotified,
   setEvent,
   uniqueViolationConstraint,
 } from '../repositories/implantationRepository.js';
 
-export type ImplantationDispatch = 'calendar' | 'n8n';
+export type ImplantationDispatch = 'calendar';
 
 export interface BookImplantationInput {
   sellerEmail: string;
@@ -55,9 +53,12 @@ function invalidSlot(): AppError {
   });
 }
 
-// Despachos best-effort: adiciona o cliente ao evento de treinamento e dispara o
-// webhook do n8n. Falhas viram pendência para reprocessar (replay idempotente)
-// — a reserva (vaga) já está garantida no banco.
+// Despacho best-effort: adiciona o cliente ao evento de treinamento. Falha vira
+// pendência para reprocessar (replay idempotente) — a reserva (vaga) já está
+// garantida no banco.
+// Nota: a notificação ao cliente (WhatsApp/e-mail) NÃO usa mais o n8n na
+// implantação — passará a ser feita pelas automações do HubSpot (Fase A). Até lá
+// o convite do treinamento ainda sai pelo Google.
 async function runDispatches(booking: Implantation): Promise<ImplantationDispatch[]> {
   const pending: ImplantationDispatch[] = [];
 
@@ -80,27 +81,6 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
     } catch (err) {
       logger.warn({ err, implantationId: booking.id }, 'implantation calendar dispatch pending');
       pending.push('calendar');
-    }
-  }
-
-  if (!booking.n8nNotifiedAt) {
-    try {
-      await notifyImplantation({
-        companyName: booking.companyName,
-        clientName: booking.clientName,
-        clientEmail: booking.clientEmail,
-        clientPhoneE164: booking.clientPhoneE164,
-        clientId: booking.clientId,
-        implanter: booking.implanter,
-        scheduledStart: booking.scheduledStart,
-        meetingUrl: booking.meetingUrl,
-        requesterName: booking.sellerName,
-        requesterEmail: booking.sellerEmail,
-      });
-      await markN8nNotified(booking.id);
-    } catch (err) {
-      logger.warn({ err, implantationId: booking.id }, 'implantation n8n dispatch pending');
-      pending.push('n8n');
     }
   }
 
