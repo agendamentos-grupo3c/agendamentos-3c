@@ -14,7 +14,7 @@ const BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
 
 export type Role = 'integrator' | 'seller';
 
-export type Implanter = 'gabrielle' | 'bryan' | 'luan' | 'wagner';
+export type Implanter = 'gabrielle' | 'bryan' | 'wagner';
 
 export interface ApiUser {
   email: string;
@@ -82,7 +82,7 @@ export interface OutcomeResponse {
 
 // === Implantação ===
 
-export type Segment = 'enterprise' | 'middle' | 'small' | 'evolux';
+export type Segment = 'enterprise' | 'middle' | 'small';
 export type ImplantationSlotKind = 'coletiva_manha' | 'individual' | 'coletiva_tarde';
 export type ImplantationStatus = 'agendado' | 'compareceu' | 'no_show';
 

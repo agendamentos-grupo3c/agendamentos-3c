@@ -32,7 +32,6 @@ const SEGMENTS: { value: Segment; label: string }[] = [
   { value: 'enterprise', label: 'Enterprise' },
   { value: 'middle', label: 'Middle' },
   { value: 'small', label: 'Small' },
-  { value: 'evolux', label: 'Evolux' },
 ];
 
 export function ImplantationForm({

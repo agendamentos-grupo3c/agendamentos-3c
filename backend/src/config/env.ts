@@ -47,7 +47,6 @@ const schema = z.object({
   // de edição a todas (para adicionar convidados aos eventos de treinamento).
   CALENDAR_GABRIELLE_ID: z.string().optional(),
   CALENDAR_BRYAN_ID: z.string().optional(),
-  CALENDAR_LUAN_ID: z.string().optional(),
   CALENDAR_WAGNER_ID: z.string().optional(),
   // Webhook do n8n que dispara WhatsApp + e-mail ao confirmar a implantação.
   N8N_IMPLANTACAO_WEBHOOK: z.string().url().optional(),

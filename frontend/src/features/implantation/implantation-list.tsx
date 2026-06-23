@@ -32,7 +32,6 @@ const SEGMENT_LABELS: Record<Segment, string> = {
   enterprise: 'Enterprise',
   middle: 'Middle',
   small: 'Small',
-  evolux: 'Evolux',
 };
 
 const whenFmt = new Intl.DateTimeFormat('pt-BR', {

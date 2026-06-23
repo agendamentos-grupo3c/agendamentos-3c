@@ -31,7 +31,6 @@ function buildImplanterMap(): Map<string, Implanter> {
   const map = new Map<string, Implanter>();
   if (env.CALENDAR_GABRIELLE_ID) map.set(normEmail(env.CALENDAR_GABRIELLE_ID), 'gabrielle');
   if (env.CALENDAR_BRYAN_ID) map.set(normEmail(env.CALENDAR_BRYAN_ID), 'bryan');
-  if (env.CALENDAR_LUAN_ID) map.set(normEmail(env.CALENDAR_LUAN_ID), 'luan');
   if (env.CALENDAR_WAGNER_ID) map.set(normEmail(env.CALENDAR_WAGNER_ID), 'wagner');
   return map;
 }

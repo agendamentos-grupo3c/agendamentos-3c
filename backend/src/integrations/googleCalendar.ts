@@ -70,7 +70,6 @@ function getOAuthForCalendar(): { refreshToken: string; clientId: string; client
 const IMPLANTER_CALENDAR_ENV: Record<Implanter, string | undefined> = {
   gabrielle: env.CALENDAR_GABRIELLE_ID,
   bryan: env.CALENDAR_BRYAN_ID,
-  luan: env.CALENDAR_LUAN_ID,
   wagner: env.CALENDAR_WAGNER_ID,
 };
 

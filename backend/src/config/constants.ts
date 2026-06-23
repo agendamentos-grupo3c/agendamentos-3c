@@ -125,24 +125,22 @@ export const SCHEDULING = {
 // Implantação (time de Implantação) — fluxo distinto do de Integrações.
 // ===========================================================================
 
-export const IMPLANTERS = ['gabrielle', 'bryan', 'luan', 'wagner'] as const;
+export const IMPLANTERS = ['gabrielle', 'bryan', 'wagner'] as const;
 export type Implanter = (typeof IMPLANTERS)[number];
 
 export const IMPLANTER_LABELS: Record<Implanter, string> = {
   gabrielle: 'Gabrielle',
   bryan: 'Bryan',
-  luan: 'Luan',
   wagner: 'Wagner',
 };
 
-export const SEGMENTS = ['enterprise', 'middle', 'small', 'evolux'] as const;
+export const SEGMENTS = ['enterprise', 'middle', 'small'] as const;
 export type Segment = (typeof SEGMENTS)[number];
 
 export const SEGMENT_LABELS: Record<Segment, string> = {
   enterprise: 'Enterprise',
   middle: 'Middle',
   small: 'Small',
-  evolux: 'Evolux',
 };
 
 // Segmento → implantadores que atendem (ordem = ordem de exibição das colunas).
@@ -150,7 +148,6 @@ export const SEGMENT_IMPLANTERS: Record<Segment, Implanter[]> = {
   enterprise: ['gabrielle'],
   middle: ['gabrielle', 'bryan'],
   small: ['bryan', 'wagner'],
-  evolux: ['luan'],
 };
 
 export const IMPLANTATION_SLOT_KINDS = ['coletiva_manha', 'individual', 'coletiva_tarde'] as const;
