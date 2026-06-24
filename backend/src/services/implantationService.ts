@@ -1,6 +1,10 @@
 import { HUBSPOT, IMPLANTATION_SLOTS, SEGMENT_IMPLANTERS, type Segment } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
-import { addGuestToTraining, getImplanterCalendarId } from '../integrations/googleCalendar.js';
+import {
+  addGuestToTraining,
+  createEvent,
+  getImplanterCalendarId,
+} from '../integrations/googleCalendar.js';
 import {
   createMeeting,
   findOwnerIdByEmail,
@@ -73,19 +77,33 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
   if (!booking.googleEventId) {
     try {
       const calendarId = getImplanterCalendarId(booking.implanter);
-      const result = await addGuestToTraining(
+      // Modelo de slot: o 1º agendamento do horário CRIA o evento; os demais do
+      // mesmo horário entram como convidados no MESMO evento (coletiva = até 8).
+      // addGuestToTraining acha o evento já criado por um agendamento anterior;
+      // se não existir, este é o primeiro e criamos o evento.
+      let result = await addGuestToTraining(
         calendarId,
         new Date(booking.scheduledStart),
         booking.clientEmail,
       );
-      if (result) {
-        const updated = await setEvent(booking.id, result.eventId, result.meetUrl ?? null);
-        booking.googleEventId = updated.googleEventId;
-        booking.meetingUrl = updated.meetingUrl;
-      } else {
-        logger.warn({ implantationId: booking.id }, 'training event not found for slot');
-        pending.push('calendar');
+      if (!result) {
+        const coletiva = booking.slotKind !== 'individual';
+        result = await createEvent({
+          calendarId,
+          summary: coletiva
+            ? 'Treinamento de implantação (coletiva)'
+            : `Implantação — ${booking.companyName}`,
+          description: coletiva
+            ? 'Sessão coletiva de implantação do Grupo 3C.'
+            : `Cliente: ${booking.clientName} — ${booking.companyName}`,
+          start: new Date(booking.scheduledStart),
+          end: new Date(booking.scheduledEnd),
+          attendeeEmail: booking.clientEmail,
+        });
       }
+      const updated = await setEvent(booking.id, result.eventId, result.meetUrl ?? null);
+      booking.googleEventId = updated.googleEventId;
+      booking.meetingUrl = updated.meetingUrl;
     } catch (err) {
       logger.warn({ err, implantationId: booking.id }, 'implantation calendar dispatch pending');
       pending.push('calendar');
