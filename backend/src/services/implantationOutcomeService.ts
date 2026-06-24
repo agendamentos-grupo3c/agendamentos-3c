@@ -1,14 +1,37 @@
 import { AppError } from '../errors/AppError.js';
 import { updateMeetingNotes } from '../integrations/hubspot.js';
+import { notifyImplantationOutcome } from '../integrations/n8n.js';
 import { logger } from '../lib/logger.js';
 import { getImplanterForEmail } from '../lib/roles.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
   type Implantation,
   findById,
+  listBySlot,
   markAttended,
   markNoShow,
 } from '../repositories/implantationRepository.js';
+
+// Quando TODOS os participantes do slot têm desfecho, manda o resumo da reunião
+// ao n8n (Slack). Best-effort: falha aqui não desfaz o desfecho.
+async function maybeNotifySlotOutcome(booking: Implantation): Promise<void> {
+  try {
+    const all = await listBySlot(booking.implanter, booking.slotDate, booking.slotKind);
+    if (all.some((b) => b.status === 'agendado')) return;
+    const toParticipant = (b: Implantation) => ({ companyName: b.companyName, clientName: b.clientName });
+    await notifyImplantationOutcome({
+      tipo: 'desfecho',
+      implanter: booking.implanter,
+      slotKind: booking.slotKind,
+      scheduledStartISO: booking.scheduledStart,
+      attended: all.filter((b) => b.status === 'compareceu').map(toParticipant),
+      noShow: all.filter((b) => b.status === 'no_show').map(toParticipant),
+      observation: all.find((b) => b.status === 'compareceu' && b.attendanceNotes)?.attendanceNotes ?? null,
+    });
+  } catch (err) {
+    logger.warn({ err, implantationId: booking.id }, 'implantation outcome n8n notify pending');
+  }
+}
 
 export interface ImplantationOutcomeResult {
   booking: Implantation;
@@ -71,6 +94,7 @@ export async function attendImplantation(
     }
   }
 
+  await maybeNotifySlotOutcome(updated);
   return { booking: updated };
 }
 
@@ -91,5 +115,6 @@ export async function noShowImplantation(
     metadata: { implantationId: id, from: booking.status, to: 'no_show' },
   });
 
+  await maybeNotifySlotOutcome(updated);
   return { booking: updated };
 }

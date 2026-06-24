@@ -12,6 +12,7 @@ import {
   moveDealToStage,
   setMeetingType,
 } from '../integrations/hubspot.js';
+import { notifyImplantationScheduled } from '../integrations/n8n.js';
 import { spDateString } from '../lib/implantationPolicy.js';
 import { logger } from '../lib/logger.js';
 import { toE164 } from '../lib/phone.js';
@@ -21,14 +22,16 @@ import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
   type Implantation,
   UNIQUE_CONSTRAINTS,
+  countForSlot,
   findByIdempotencyKey,
   insertWithCapacity,
+  markN8nNotified,
   setEvent,
   setHubspotMeetingId,
   uniqueViolationConstraint,
 } from '../repositories/implantationRepository.js';
 
-export type ImplantationDispatch = 'calendar' | 'hubspot';
+export type ImplantationDispatch = 'calendar' | 'hubspot' | 'n8n';
 
 export interface BookImplantationInput {
   sellerEmail: string;
@@ -153,6 +156,35 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
     } catch (err) {
       logger.warn({ err, implantationId: booking.id }, 'implantation hubspot dispatch pending');
       pending.push('hubspot');
+    }
+  }
+
+  // n8n: avisa o agendamento (WhatsApp de boas-vindas ao cliente + Slack do time).
+  // Por último, para já ter o meetingUrl (link do Meet) do passo do calendário.
+  if (!booking.n8nNotifiedAt) {
+    try {
+      const occupied = await countForSlot(booking.implanter, booking.slotDate, booking.slotKind);
+      const capacity = IMPLANTATION_SLOTS.find((t) => t.kind === booking.slotKind)?.capacity ?? 0;
+      await notifyImplantationScheduled({
+        tipo: 'agendada',
+        companyName: booking.companyName,
+        clientName: booking.clientName,
+        clientEmail: booking.clientEmail,
+        clientPhoneE164: booking.clientPhoneE164,
+        segment: booking.segment,
+        implanter: booking.implanter,
+        slotKind: booking.slotKind,
+        scheduledStartISO: booking.scheduledStart,
+        meetingUrl: booking.meetingUrl,
+        sellerEmail: booking.sellerEmail,
+        sellerName: booking.sellerName,
+        occupied,
+        capacity,
+      });
+      await markN8nNotified(booking.id);
+    } catch (err) {
+      logger.warn({ err, implantationId: booking.id }, 'implantation n8n dispatch pending');
+      pending.push('n8n');
     }
   }
 

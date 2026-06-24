@@ -185,6 +185,35 @@ export async function listByImplanter(implanter: Implanter): Promise<Implantatio
   return rows;
 }
 
+// Todas as reservas de um mesmo slot (implantador + dia + tipo) — base do
+// resumo da reunião (quem compareceu / não).
+export async function listBySlot(
+  implanter: Implanter,
+  slotDate: string,
+  slotKind: ImplantationSlotKind,
+): Promise<Implantation[]> {
+  const { rows } = await query<Implantation>(
+    `SELECT ${COLUMNS} FROM implantations
+       WHERE implanter = $1 AND slot_date = $2 AND slot_kind = $3
+       ORDER BY created_at`,
+    [implanter, slotDate, slotKind],
+  );
+  return rows;
+}
+
+export async function countForSlot(
+  implanter: Implanter,
+  slotDate: string,
+  slotKind: ImplantationSlotKind,
+): Promise<number> {
+  const { rows } = await query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM implantations
+       WHERE implanter = $1 AND slot_date = $2 AND slot_kind = $3`,
+    [implanter, slotDate, slotKind],
+  );
+  return rows[0]?.n ?? 0;
+}
+
 export async function listBySeller(sellerEmail: string): Promise<Implantation[]> {
   const { rows } = await query<Implantation>(
     `SELECT ${COLUMNS} FROM implantations WHERE seller_email = $1 ORDER BY scheduled_start DESC`,

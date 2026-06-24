@@ -1,21 +1,6 @@
 import { env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
 
-// Notificação da implantação delegada ao n8n: o backend chama o webhook com os
-// dados do agendamento e o fluxo n8n dispara WhatsApp + e-mail ao cliente.
-export interface ImplantationNotification {
-  companyName: string;
-  clientName: string;
-  clientEmail: string;
-  clientPhoneE164: string;
-  clientId: string | null;
-  implanter: string;
-  scheduledStart: string;
-  meetingUrl: string | null;
-  requesterName: string | null;
-  requesterEmail: string;
-}
-
 async function postWebhook(
   url: string | undefined,
   payload: unknown,
@@ -46,6 +31,48 @@ async function postWebhook(
   }
 }
 
-export async function notifyImplantation(payload: ImplantationNotification): Promise<void> {
+// Implantação delegada ao n8n: o backend manda os dados e o fluxo n8n formata e
+// envia (WhatsApp ao cliente + Slack). O `tipo` roteia no n8n.
+export interface ImplantationScheduledNotification {
+  tipo: 'agendada';
+  companyName: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhoneE164: string;
+  segment: string;
+  implanter: string;
+  slotKind: string;
+  scheduledStartISO: string;
+  meetingUrl: string | null;
+  sellerEmail: string;
+  sellerName: string | null;
+  occupied: number;
+  capacity: number;
+}
+
+export interface ImplantationOutcomeParticipant {
+  companyName: string;
+  clientName: string;
+}
+
+export interface ImplantationOutcomeNotification {
+  tipo: 'desfecho';
+  implanter: string;
+  slotKind: string;
+  scheduledStartISO: string;
+  attended: ImplantationOutcomeParticipant[];
+  noShow: ImplantationOutcomeParticipant[];
+  observation: string | null;
+}
+
+export async function notifyImplantationScheduled(
+  payload: ImplantationScheduledNotification,
+): Promise<void> {
+  await postWebhook(env.N8N_IMPLANTACAO_WEBHOOK, payload, 'N8N_IMPLANTACAO_WEBHOOK ausente.');
+}
+
+export async function notifyImplantationOutcome(
+  payload: ImplantationOutcomeNotification,
+): Promise<void> {
   await postWebhook(env.N8N_IMPLANTACAO_WEBHOOK, payload, 'N8N_IMPLANTACAO_WEBHOOK ausente.');
 }
