@@ -49,105 +49,164 @@ function StatusBadge({ status }: { status: ImplantationStatus }) {
   );
 }
 
-function AttendForm({ id, onDone }: { id: string; onDone: () => void }) {
-  const [notes, setNotes] = React.useState('');
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+type Decision = 'compareceu' | 'no_show';
 
-  async function submit() {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.implantationAttended(id, notes);
-      onDone();
-    } catch {
-      setError('Não foi possível salvar. Tente novamente.');
-      setBusy(false);
-    }
+interface Slot {
+  key: string;
+  slotKind: ImplantationSlotKind;
+  scheduledStart: string;
+  bookings: ImplantationBooking[];
+}
+
+function groupBySlot(bookings: ImplantationBooking[]): Slot[] {
+  const map = new Map<string, Slot>();
+  for (const b of bookings) {
+    const key = `${b.slotKind}|${b.scheduledStart}`;
+    const slot = map.get(key) ?? {
+      key,
+      slotKind: b.slotKind,
+      scheduledStart: b.scheduledStart,
+      bookings: [],
+    };
+    slot.bookings.push(b);
+    map.set(key, slot);
   }
+  return [...map.values()].sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
+}
 
+// Botão de escolha por cliente (Compareceu / No-show), sem hover amarelo.
+function ChoiceButton({
+  active,
+  tone,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  tone: 'ok' | 'no';
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="space-y-3 rounded-xl border p-3">
-      <div className="space-y-1.5">
-        <Label htmlFor={`notes-${id}`}>Observações da reunião</Label>
-        <Textarea
-          id={`notes-${id}`}
-          rows={3}
-          placeholder="Anote os pontos principais do treinamento…"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button size="sm" disabled={busy} onClick={submit}>
-        Confirmar presença
-      </Button>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'rounded-lg border px-3 py-1 text-xs font-medium transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        active && tone === 'ok' && 'border-green-600 bg-green-500/10 text-green-700 dark:text-green-400',
+        active && tone === 'no' && 'border-destructive bg-destructive/10 text-destructive',
+        !active && 'border-input text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
-function BookingItem({
-  booking,
-  canEdit,
-  onChanged,
-}: {
-  booking: ImplantationBooking;
-  canEdit: boolean;
-  onChanged: () => void;
-}) {
-  const [registering, setRegistering] = React.useState(false);
+function SlotCard({ slot, canEdit, onChanged }: { slot: Slot; canEdit: boolean; onChanged: () => void }) {
+  const [decisions, setDecisions] = React.useState<Record<string, Decision>>({});
+  const [observation, setObservation] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  async function noShow() {
+  const isColetiva = slot.slotKind !== 'individual';
+  const pending = slot.bookings.filter((b) => b.status === 'agendado');
+  const attendedNote = slot.bookings.find((b) => b.status === 'compareceu')?.attendanceNotes;
+  const allDecided = pending.length > 0 && pending.every((b) => decisions[b.id]);
+  const anyAttended = pending.some((b) => decisions[b.id] === 'compareceu');
+
+  async function save() {
     setBusy(true);
+    setError(null);
     try {
-      await api.implantationNoShow(booking.id);
+      for (const b of pending) {
+        const d = decisions[b.id];
+        if (d === 'compareceu') await api.implantationAttended(b.id, observation);
+        else if (d === 'no_show') await api.implantationNoShow(b.id);
+      }
       onChanged();
     } catch {
+      setError('Não foi possível salvar os desfechos. Tente novamente.');
       setBusy(false);
     }
   }
 
   return (
     <Card className="rounded-2xl">
-      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
-        <div>
-          <CardTitle className="text-base">{booking.companyName}</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {booking.clientName} · {SEGMENT_LABELS[booking.segment]} · {SLOT_LABELS[booking.slotKind]}
-            {` · ${whenFmt.format(new Date(booking.scheduledStart))}`}
-          </p>
-        </div>
-        <StatusBadge status={booking.status} />
+      <CardHeader className="space-y-0.5">
+        <CardTitle className="text-base">
+          {SLOT_LABELS[slot.slotKind]}
+          {isColetiva && ` · ${slot.bookings.length} participante(s)`}
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">{whenFmt.format(new Date(slot.scheduledStart))}</p>
       </CardHeader>
       <CardContent className="space-y-3">
-        {booking.status === 'agendado' &&
-          (canEdit ? (
-            registering ? (
-              <AttendForm id={booking.id} onDone={onChanged} />
-            ) : (
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => setRegistering(true)}>
-                  Compareceu
-                </Button>
-                <Button size="sm" variant="outline" disabled={busy} onClick={noShow}>
-                  No-show
-                </Button>
+        <ul className="divide-y">
+          {slot.bookings.map((b) => (
+            <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{b.companyName}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {b.clientName} · {SEGMENT_LABELS[b.segment]}
+                </p>
               </div>
-            )
-          ) : (
-            <p className="text-sm text-muted-foreground">Aguardando o treinamento.</p>
+              {b.status !== 'agendado' ? (
+                <StatusBadge status={b.status} />
+              ) : canEdit ? (
+                <div className="flex gap-1.5">
+                  <ChoiceButton
+                    active={decisions[b.id] === 'compareceu'}
+                    tone="ok"
+                    onClick={() => setDecisions((d) => ({ ...d, [b.id]: 'compareceu' }))}
+                  >
+                    Compareceu
+                  </ChoiceButton>
+                  <ChoiceButton
+                    active={decisions[b.id] === 'no_show'}
+                    tone="no"
+                    onClick={() => setDecisions((d) => ({ ...d, [b.id]: 'no_show' }))}
+                  >
+                    No-show
+                  </ChoiceButton>
+                </div>
+              ) : (
+                <StatusBadge status={b.status} />
+              )}
+            </li>
           ))}
+        </ul>
 
-        {booking.status === 'compareceu' && booking.attendanceNotes && (
+        {attendedNote && (
           <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Observações:</span>{' '}
-            {booking.attendanceNotes}
+            <span className="font-medium text-foreground">Observações:</span> {attendedNote}
           </p>
         )}
 
-        {booking.status === 'no_show' && (
-          <p className="text-sm text-muted-foreground">Cliente não compareceu ao treinamento.</p>
+        {canEdit && pending.length > 0 && (
+          <div className="space-y-3 rounded-xl border p-3">
+            {anyAttended && (
+              <div className="space-y-1.5">
+                <Label htmlFor={`obs-${slot.key}`}>Observações da reunião (vale para todos que compareceram)</Label>
+                <Textarea
+                  id={`obs-${slot.key}`}
+                  rows={3}
+                  placeholder="Anote os pontos principais do treinamento…"
+                  value={observation}
+                  onChange={(e) => setObservation(e.target.value)}
+                />
+              </div>
+            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button size="sm" disabled={!allDecided || busy} onClick={save}>
+              {busy ? 'Salvando…' : 'Salvar desfechos'}
+            </Button>
+            {!allDecided && (
+              <p className="text-xs text-muted-foreground">
+                Marque Compareceu ou No-show para cada participante.
+              </p>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -179,10 +238,12 @@ export function ImplantationList() {
     return <p className="text-muted-foreground">Nenhuma implantação agendada.</p>;
   }
 
+  const slots = groupBySlot(bookings);
+
   return (
     <div className="space-y-3">
-      {bookings.map((booking) => (
-        <BookingItem key={booking.id} booking={booking} canEdit={canEdit} onChanged={load} />
+      {slots.map((slot) => (
+        <SlotCard key={slot.key} slot={slot} canEdit={canEdit} onChanged={load} />
       ))}
     </div>
   );
