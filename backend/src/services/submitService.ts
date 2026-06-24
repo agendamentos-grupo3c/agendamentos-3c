@@ -5,6 +5,7 @@ import { createEvent, getBusyIntervals, getCalendarConfig } from '../integration
 import { logger } from '../lib/logger.js';
 import { toE164 } from '../lib/phone.js';
 import type { SlotPayload } from '../lib/slotToken.js';
+import { isSubjectActive } from '../repositories/agendaRepository.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
   type Card,
@@ -84,6 +85,15 @@ export async function submitKickoff(input: SubmitKickoffInput): Promise<SubmitRe
   const existing = await findByIdempotencyKey(input.idempotencyKey);
   if (existing) {
     return { card: existing, pending: await runDispatches(existing) };
+  }
+
+  // Agenda do colaborador pausada entre ver e enviar → recusa.
+  if (!(await isSubjectActive(input.slot.collaborator))) {
+    throw new AppError({
+      code: 'COLLABORATOR_UNAVAILABLE',
+      statusCode: 409,
+      publicMessage: 'A agenda desse colaborador está indisponível no momento. Escolha outro horário.',
+    });
   }
 
   const cfg = getCalendarConfig();

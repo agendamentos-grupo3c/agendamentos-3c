@@ -21,6 +21,19 @@ export interface ApiUser {
   name: string;
   role: Role;
   implanter: Implanter | null;
+  isAdmin: boolean;
+}
+
+export interface AgendaState {
+  ownsAgenda: boolean;
+  active: boolean;
+}
+
+export interface AgendaLogEntry {
+  actorEmail: string;
+  action: 'agenda.paused' | 'agenda.resumed';
+  metadata: { subjects?: string[] } | null;
+  createdAt: string;
 }
 
 export interface AvailableSlot {
@@ -240,6 +253,13 @@ export const api = {
 
   implantationNoShow: (id: string): Promise<{ booking: ImplantationBooking }> =>
     csrfPost<{ booking: ImplantationBooking }>(`/implantation/${id}/no-show`),
+
+  // --- Agenda (pausar/reativar) ---
+  getAgendaStatus: (): Promise<AgendaState> => request<AgendaState>('/agenda/status'),
+
+  toggleAgenda: (): Promise<AgendaState> => csrfPost<AgendaState>('/agenda/toggle'),
+
+  getAgendaLog: (): Promise<AgendaLogEntry[]> => request<AgendaLogEntry[]>('/agenda/log'),
 
   logout: (): Promise<void> => csrfPost<void>('/auth/logout'),
 };

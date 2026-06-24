@@ -10,6 +10,7 @@ import { CORS, RATE_LIMIT } from './config/constants.js';
 import { env } from './config/env.js';
 import { errorHandler, notFoundHandler } from './errors/errorHandler.js';
 import { logger } from './lib/logger.js';
+import { agendaRoutes } from './routes/agenda.js';
 import { authRoutes } from './routes/auth.js';
 import { availabilityRoutes } from './routes/availability.js';
 import { cardRoutes } from './routes/cards.js';
@@ -84,6 +85,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(submitRoutes);
   await app.register(cardRoutes);
   await app.register(implantationRoutes);
+  await app.register(agendaRoutes);
 
   return app;
 }

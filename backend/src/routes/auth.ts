@@ -15,7 +15,7 @@ import {
   createSessionToken,
   setSessionCookie,
 } from '../lib/session.js';
-import { getImplanterForEmail, getRole } from '../lib/roles.js';
+import { getImplanterForEmail, getRole, isAdmin } from '../lib/roles.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 import { completeLogin } from '../services/authService.js';
 
@@ -103,6 +103,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       name: req.user!.name,
       role: getRole(email),
       implanter: getImplanterForEmail(email),
+      isAdmin: isAdmin(email),
     };
   });
 

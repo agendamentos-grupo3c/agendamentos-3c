@@ -12,6 +12,7 @@ import {
   type ImplantationSlot,
 } from '../lib/implantationPolicy.js';
 import { encodeImplantationToken } from '../lib/slotToken.js';
+import { listInactiveSubjects } from '../repositories/agendaRepository.js';
 import { countsForWindow, lastImplanterForSegment } from '../repositories/implantationRepository.js';
 
 export interface AvailableImplantationSlot {
@@ -60,7 +61,10 @@ export async function getImplantationAvailability(
   now: Date,
   segment: Segment,
 ): Promise<ImplantationAvailability> {
-  const eligible = SEGMENT_IMPLANTERS[segment];
+  // Implantadores com agenda pausada saem da lista de elegíveis.
+  const inactive = await listInactiveSubjects();
+  const eligible = SEGMENT_IMPLANTERS[segment].filter((i) => !inactive.has(i));
+  if (eligible.length === 0) return { best: [], others: [] };
   const last = eligible.length > 1 ? await lastImplanterForSegment(segment) : null;
   const preferred = pickPreferred(eligible, last);
 

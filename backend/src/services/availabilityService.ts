@@ -2,6 +2,7 @@ import { SCHEDULING } from '../config/constants.js';
 import { getBusyIntervals, getCalendarConfig, type BusyInterval } from '../integrations/googleCalendar.js';
 import { generateSlots, type Collaborator, type Slot } from '../lib/schedulingPolicy.js';
 import { encodeSlotToken } from '../lib/slotToken.js';
+import { listInactiveSubjects } from '../repositories/agendaRepository.js';
 
 export interface AvailableSlot {
   token: string;
@@ -63,9 +64,11 @@ async function forCollaborator(
 // recebe apenas rótulos + token opaco — nunca e-mails/IDs de agenda.
 export async function getAvailability(now: Date): Promise<Availability> {
   const cfg = getCalendarConfig();
+  // Agenda pausada não é oferecida (a coluna some).
+  const inactive = await listInactiveSubjects();
   const [alana, guilherme] = await Promise.all([
-    forCollaborator(now, 'alana', cfg.alanaId),
-    forCollaborator(now, 'guilherme', cfg.guilhermeId),
+    inactive.has('alana') ? Promise.resolve([]) : forCollaborator(now, 'alana', cfg.alanaId),
+    inactive.has('guilherme') ? Promise.resolve([]) : forCollaborator(now, 'guilherme', cfg.guilhermeId),
   ]);
   return { alana, guilherme };
 }

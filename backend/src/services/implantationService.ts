@@ -16,6 +16,7 @@ import { spDateString } from '../lib/implantationPolicy.js';
 import { logger } from '../lib/logger.js';
 import { toE164 } from '../lib/phone.js';
 import type { ImplantationSlotPayload } from '../lib/slotToken.js';
+import { isSubjectActive } from '../repositories/agendaRepository.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
   type Implantation,
@@ -166,6 +167,15 @@ export async function bookImplantation(input: BookImplantationInput): Promise<Bo
   const template = IMPLANTATION_SLOTS.find((t) => t.kind === slot.kind);
   if (!template) throw invalidSlot();
   if (template.onlyImplanter && template.onlyImplanter !== slot.implanter) throw invalidSlot();
+
+  // Agenda do implantador pausada entre ver e enviar → recusa.
+  if (!(await isSubjectActive(slot.implanter))) {
+    throw new AppError({
+      code: 'IMPLANTER_UNAVAILABLE',
+      statusCode: 409,
+      publicMessage: 'A agenda desse implantador está indisponível no momento. Escolha outro horário.',
+    });
+  }
 
   let booking: Implantation | null;
   try {

@@ -1,5 +1,5 @@
+import { ADMIN_EMAILS, type Implanter } from '../config/constants.js';
 import { env } from '../config/env.js';
-import type { Implanter } from '../config/constants.js';
 import type { Collaborator } from './schedulingPolicy.js';
 
 export type Role = 'integrator' | 'seller';
@@ -43,4 +43,19 @@ export function getImplanterForEmail(email: string): Implanter | null {
 
 export function isImplanter(email: string): boolean {
   return implanterMap.has(normEmail(email));
+}
+
+export function isAdmin(email: string): boolean {
+  return (ADMIN_EMAILS as readonly string[]).includes(normEmail(email));
+}
+
+// Sujeitos de agenda que a pessoa "possui" (coluna de integração e/ou
+// implantador). Base do botão de pausar/reativar — pausa só o que é dela.
+export function getAgendaSubjectsForEmail(email: string): string[] {
+  const subjects: string[] = [];
+  const collaborator = getCollaboratorForEmail(email);
+  if (collaborator) subjects.push(collaborator);
+  const implanter = getImplanterForEmail(email);
+  if (implanter) subjects.push(implanter);
+  return subjects;
 }

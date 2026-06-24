@@ -81,6 +81,9 @@ export const CLICKUP = {
   },
 } as const;
 
+// Admins com acesso ao log de pausa/reativação de agendas.
+export const ADMIN_EMAILS = ['alana.gaspar@grupo-3c.com', 'junior.andrade@grupo-3c.com'] as const;
+
 export const AUTH = {
   SESSION_COOKIE: '3c_session',
   SESSION_TTL_SECONDS: 60 * 60 * 12, // 12h
