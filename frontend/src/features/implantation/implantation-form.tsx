@@ -180,7 +180,7 @@ export function ImplantationForm({
                           <Loader2 className="size-4 animate-spin text-muted-foreground" />
                         )}
                         {check === 'found' && (
-                          <CheckCircle2 className="size-4 text-green-600 dark:text-green-400" />
+                          <CheckCircle2 className="size-4 text-green-500 dark:text-green-300" />
                         )}
                         {(check === 'notfound' || check === 'error') && (
                           <XCircle className="size-4 text-destructive" />
@@ -199,7 +199,7 @@ export function ImplantationForm({
                     </p>
                   )}
                   {check === 'found' && (
-                    <p className="text-sm text-green-600 dark:text-green-400">Lead encontrado.</p>
+                    <p className="text-sm text-green-500 dark:text-green-300">Lead encontrado.</p>
                   )}
                   <FormMessage />
                 </FormItem>

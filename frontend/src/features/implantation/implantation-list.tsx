@@ -18,8 +18,8 @@ import { cn } from '@/lib/utils';
 
 const STATUS_META: Record<ImplantationStatus, { label: string; className: string }> = {
   agendado: { label: 'Agendado', className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400' },
-  compareceu: { label: 'Compareceu', className: 'bg-green-500/15 text-green-600 dark:text-green-400' },
-  no_show: { label: 'No-show', className: 'bg-red-500/15 text-red-600 dark:text-red-400' },
+  compareceu: { label: 'Compareceu', className: 'bg-green-500/10 text-green-500 dark:text-green-300' },
+  no_show: { label: 'No-show', className: 'bg-red-500/10 text-red-500 dark:text-red-300' },
 };
 
 const SLOT_LABELS: Record<ImplantationSlotKind, string> = {
@@ -94,7 +94,7 @@ function ChoiceButton({
       className={cn(
         'rounded-lg border px-3 py-1 text-xs font-medium transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        active && tone === 'ok' && 'border-green-600 bg-green-500/10 text-green-700 dark:text-green-400',
+        active && tone === 'ok' && 'border-green-400 bg-green-500/10 text-green-600 dark:text-green-300',
         active && tone === 'no' && 'border-destructive bg-destructive/10 text-destructive',
         !active && 'border-input text-muted-foreground hover:border-foreground/30 hover:text-foreground',
       )}

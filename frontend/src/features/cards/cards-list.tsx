@@ -18,9 +18,9 @@ const STATUS_META: Record<CardStatus, { label: string; className: string }> = {
   compareceu: { label: 'Compareceu', className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
   orcamento_enviado: {
     label: 'Orçamento enviado',
-    className: 'bg-green-500/15 text-green-600 dark:text-green-400',
+    className: 'bg-green-500/10 text-green-500 dark:text-green-300',
   },
-  no_show: { label: 'No-show', className: 'bg-red-500/15 text-red-600 dark:text-red-400' },
+  no_show: { label: 'No-show', className: 'bg-red-500/10 text-red-500 dark:text-red-300' },
 };
 
 const whenFmt = new Intl.DateTimeFormat('pt-BR', {
