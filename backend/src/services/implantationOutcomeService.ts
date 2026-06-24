@@ -1,4 +1,6 @@
 import { AppError } from '../errors/AppError.js';
+import { updateMeetingNotes } from '../integrations/hubspot.js';
+import { logger } from '../lib/logger.js';
 import { getImplanterForEmail } from '../lib/roles.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
@@ -57,6 +59,17 @@ export async function attendImplantation(
     action: 'implantation.attended',
     metadata: { implantationId: id, from: booking.status, to: 'compareceu' },
   });
+
+  // Grava a observação na reunião do HubSpot (a mesma para todos os que
+  // compareceram — o front envia o mesmo texto a cada participante).
+  // Best-effort: a falha aqui não desfaz o desfecho já registrado.
+  if (updated.hubspotMeetingId && notes) {
+    try {
+      await updateMeetingNotes(updated.hubspotMeetingId, notes);
+    } catch (err) {
+      logger.warn({ err, implantationId: id }, 'hubspot meeting notes update pending');
+    }
+  }
 
   return { booking: updated };
 }

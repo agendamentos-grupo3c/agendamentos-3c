@@ -106,6 +106,16 @@ export async function findWelcomeDeal(id3c: string): Promise<WelcomeDeal | null>
   return null;
 }
 
+// Atualiza a observação (corpo) da reunião — usado no pós-reunião. A mesma
+// observação é gravada na meeting de cada participante que compareceu.
+export async function updateMeetingNotes(meetingId: string, body: string): Promise<void> {
+  await hsFetch(
+    `/engagements/v1/engagements/${meetingId}`,
+    { method: 'PATCH', body: JSON.stringify({ metadata: { body } }) },
+    'HUBSPOT_MEETING_UPDATE_FAILED',
+  );
+}
+
 // Move o deal para outra etapa (ex.: Boas Vindas → Implantação após agendar).
 export async function moveDealToStage(dealId: string, dealstage: string): Promise<void> {
   await hsFetch(
