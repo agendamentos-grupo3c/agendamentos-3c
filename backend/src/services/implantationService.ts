@@ -6,6 +6,7 @@ import {
   findOwnerIdByEmail,
   findWelcomeDeal,
   moveDealToStage,
+  setMeetingType,
 } from '../integrations/hubspot.js';
 import { spDateString } from '../lib/implantationPolicy.js';
 import { logger } from '../lib/logger.js';
@@ -113,6 +114,10 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         });
         const updated = await setHubspotMeetingId(booking.id, meetingId);
         booking.hubspotMeetingId = updated.hubspotMeetingId;
+
+        // Tipo da reunião (ex.: "Implantação Coletiva" para coletivas).
+        const meetingType = HUBSPOT.MEETING_TYPE_BY_SLOT[booking.slotKind];
+        if (meetingType) await setMeetingType(meetingId, meetingType);
 
         // Move o lead para a etapa Implantação do mesmo funil (o n8n vai reagir
         // a essa transição para enviar o e-mail de boas-vindas ao cliente).

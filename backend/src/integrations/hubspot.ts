@@ -116,6 +116,17 @@ export async function updateMeetingNotes(meetingId: string, body: string): Promi
   );
 }
 
+// Define o tipo da reunião (hs_activity_type), ex.: "Implantação Coletiva".
+// Via v3 objects/meetings (a escrita está coberta por scope que o portal tem,
+// mesmo sem o crm.objects.meetings.write explícito).
+export async function setMeetingType(meetingId: string, activityType: string): Promise<void> {
+  await hsFetch(
+    `/crm/v3/objects/meetings/${meetingId}`,
+    { method: 'PATCH', body: JSON.stringify({ properties: { hs_activity_type: activityType } }) },
+    'HUBSPOT_MEETING_TYPE_FAILED',
+  );
+}
+
 // Move o deal para outra etapa (ex.: Boas Vindas → Implantação após agendar).
 export async function moveDealToStage(dealId: string, dealstage: string): Promise<void> {
   await hsFetch(

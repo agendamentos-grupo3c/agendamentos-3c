@@ -207,4 +207,11 @@ export const HUBSPOT = {
     '1008450862': '1008450864', // [3C] CS - Teste
     '1008378259': '1008452444', // [3C] CS - Fechado
   } as Record<string, string>,
+  // Tipo da reunião (hs_activity_type) por tipo de slot. Coletivas usam
+  // "Implantação Coletiva"; individual usa "Implantação" (ajustar se necessário).
+  MEETING_TYPE_BY_SLOT: {
+    coletiva_manha: 'Implantação Coletiva',
+    coletiva_tarde: 'Implantação Coletiva',
+    individual: 'Implantação',
+  } as Record<ImplantationSlotKind, string>,
 } as const;
