@@ -134,14 +134,21 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         const updated = await setHubspotMeetingId(booking.id, meetingId);
         booking.hubspotMeetingId = updated.hubspotMeetingId;
 
-        // Tipo da reunião (ex.: "Implantação Coletiva" para coletivas).
-        const meetingType = HUBSPOT.MEETING_TYPE_BY_SLOT[booking.slotKind];
-        if (meetingType) await setMeetingType(meetingId, meetingType);
-
-        // Move o lead para a etapa Implantação do mesmo funil (o n8n vai reagir
-        // a essa transição para enviar o e-mail de boas-vindas ao cliente).
+        // Move o lead para a etapa Implantação do mesmo funil (gatilho do n8n
+        // para o e-mail de boas-vindas) — prioritário.
         const implStage = HUBSPOT.WELCOME_TO_IMPLANTATION_STAGE[deal.welcomeStageId];
         if (implStage) await moveDealToStage(deal.dealId, implStage);
+
+        // Tipo da reunião (ex.: "Implantação Coletiva"). Best-effort isolado: um
+        // valor inválido não pode bloquear o move de etapa nem o agendamento.
+        const meetingType = HUBSPOT.MEETING_TYPE_BY_SLOT[booking.slotKind];
+        if (meetingType) {
+          try {
+            await setMeetingType(meetingId, meetingType);
+          } catch (err) {
+            logger.warn({ err, implantationId: booking.id }, 'hubspot meeting type pending');
+          }
+        }
       }
     } catch (err) {
       logger.warn({ err, implantationId: booking.id }, 'implantation hubspot dispatch pending');
