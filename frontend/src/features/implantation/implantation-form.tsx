@@ -1,6 +1,8 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import * as React from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/ui/button';
@@ -14,10 +16,12 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import type { Segment } from '@/lib/api';
+import { api, type Segment } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { maskBrPhone } from '@/lib/phone';
 import { implantationFormSchema, type ImplantationFormValues } from '@/schemas/implantation';
+
+type ClientCheck = 'idle' | 'loading' | 'found' | 'notfound' | 'error';
 
 const EMPTY: ImplantationFormValues = {
   companyName: '',
@@ -47,6 +51,31 @@ export function ImplantationForm({
     defaultValues: defaultValues ?? EMPTY,
   });
 
+  // Validação do lead pelo ID do cliente: procura um negócio na etapa "Boas
+  // Vindas" dos funis. Só libera o agendamento quando encontrado.
+  const clientId = form.watch('clientId');
+  const [check, setCheck] = React.useState<ClientCheck>('idle');
+
+  React.useEffect(() => {
+    const id = clientId.trim();
+    if (!id) {
+      setCheck('idle');
+      return;
+    }
+    setCheck('loading');
+    let active = true;
+    const t = setTimeout(() => {
+      api
+        .validateImplantationClient(id)
+        .then((r) => active && setCheck(r.found ? 'found' : 'notfound'))
+        .catch(() => active && setCheck('error'));
+    }, 500);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [clientId]);
+
   return (
     <Card className="rounded-3xl">
       <CardHeader>
@@ -55,7 +84,14 @@ export function ImplantationForm({
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5" noValidate>
+          <form
+            onSubmit={form.handleSubmit((values) => {
+              if (check !== 'found') return;
+              onSubmit(values);
+            })}
+            className="space-y-5"
+            noValidate
+          >
             <FormField
               control={form.control}
               name="segment"
@@ -137,8 +173,34 @@ export function ImplantationForm({
                 <FormItem>
                   <FormLabel>ID do cliente</FormLabel>
                   <FormControl>
-                    <Input placeholder="ID do cliente na plataforma" {...field} />
+                    <div className="relative">
+                      <Input className="pr-9" placeholder="ID do cliente na plataforma" {...field} />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {check === 'loading' && (
+                          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                        )}
+                        {check === 'found' && (
+                          <CheckCircle2 className="size-4 text-green-600 dark:text-green-400" />
+                        )}
+                        {(check === 'notfound' || check === 'error') && (
+                          <XCircle className="size-4 text-destructive" />
+                        )}
+                      </span>
+                    </div>
                   </FormControl>
+                  {check === 'notfound' && (
+                    <p className="text-sm text-destructive">
+                      Lead não encontrado na etapa Boas Vindas de nenhum funil. Confira o ID.
+                    </p>
+                  )}
+                  {check === 'error' && (
+                    <p className="text-sm text-destructive">
+                      Não foi possível validar o ID agora. Tente novamente.
+                    </p>
+                  )}
+                  {check === 'found' && (
+                    <p className="text-sm text-green-600 dark:text-green-400">Lead encontrado.</p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -163,7 +225,7 @@ export function ImplantationForm({
               )}
             />
 
-            <Button type="submit" size="lg" className="w-full">
+            <Button type="submit" size="lg" className="w-full" disabled={check !== 'found'}>
               Ver horários
             </Button>
           </form>

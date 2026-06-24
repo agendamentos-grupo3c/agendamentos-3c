@@ -7,6 +7,7 @@ import { getImplanterForEmail } from '../lib/roles.js';
 import { decodeImplantationToken } from '../lib/slotToken.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 import { requireImplanter } from '../middlewares/requireImplanter.js';
+import { findWelcomeDeal } from '../integrations/hubspot.js';
 import {
   type Implantation,
   listByImplanter,
@@ -58,6 +59,21 @@ export async function implantationRoutes(app: FastifyInstance): Promise<void> {
     }
     return getImplantationAvailability(new Date(), parsed.data.segment);
   });
+
+  // Validação do lead: confirma que o ID do cliente (id_3c) tem um negócio na
+  // etapa "Boas Vindas" de um dos funis antes de liberar o agendamento.
+  app.get(
+    '/implantation/validate-client',
+    { preHandler: requireAuth, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    async (req) => {
+      const parsed = z.object({ clientId: z.string().trim().min(1).max(50) }).safeParse(req.query);
+      if (!parsed.success) {
+        throw new AppError({ code: 'BAD_REQUEST', statusCode: 400, publicMessage: 'ID inválido.' });
+      }
+      const deal = await findWelcomeDeal(parsed.data.clientId);
+      return { found: deal !== null };
+    },
+  );
 
   // Agendar a implantação (idempotente; limite agressivo).
   app.post(

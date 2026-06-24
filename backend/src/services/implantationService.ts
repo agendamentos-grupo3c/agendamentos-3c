@@ -1,6 +1,7 @@
 import { IMPLANTATION_SLOTS, SEGMENT_IMPLANTERS, type Segment } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
 import { addGuestToTraining, getImplanterCalendarId } from '../integrations/googleCalendar.js';
+import { createAppointment, findOwnerIdByEmail, findWelcomeDeal } from '../integrations/hubspot.js';
 import { spDateString } from '../lib/implantationPolicy.js';
 import { logger } from '../lib/logger.js';
 import { toE164 } from '../lib/phone.js';
@@ -12,10 +13,11 @@ import {
   findByIdempotencyKey,
   insertWithCapacity,
   setEvent,
+  setHubspotMeetingId,
   uniqueViolationConstraint,
 } from '../repositories/implantationRepository.js';
 
-export type ImplantationDispatch = 'calendar';
+export type ImplantationDispatch = 'calendar' | 'hubspot';
 
 export interface BookImplantationInput {
   sellerEmail: string;
@@ -81,6 +83,34 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
     } catch (err) {
       logger.warn({ err, implantationId: booking.id }, 'implantation calendar dispatch pending');
       pending.push('calendar');
+    }
+  }
+
+  // Registro da reunião no HubSpot (objeto Appointment): acha o deal pelo ID 3C
+  // na etapa "Boas Vindas", cria o appointment com o vendedor como organizador
+  // (se for owner) e associa ao deal + contato. Best-effort → pendência.
+  if (!booking.hubspotMeetingId) {
+    try {
+      const deal = await findWelcomeDeal(booking.clientId ?? '');
+      if (!deal) {
+        logger.warn({ implantationId: booking.id }, 'hubspot welcome deal not found for client');
+        pending.push('hubspot');
+      } else {
+        const ownerId = await findOwnerIdByEmail(booking.sellerEmail);
+        const { appointmentId } = await createAppointment({
+          name: `Implantação — ${booking.companyName}`,
+          startISO: booking.scheduledStart,
+          endISO: booking.scheduledEnd,
+          ownerId,
+          dealId: deal.dealId,
+          contactId: deal.contactId,
+        });
+        const updated = await setHubspotMeetingId(booking.id, appointmentId);
+        booking.hubspotMeetingId = updated.hubspotMeetingId;
+      }
+    } catch (err) {
+      logger.warn({ err, implantationId: booking.id }, 'implantation hubspot dispatch pending');
+      pending.push('hubspot');
     }
   }
 

@@ -191,3 +191,17 @@ export const IMPLANTATION = {
   // Quantos dias ÚTEIS exibir: hoje + 2 dias úteis.
   WEEKDAYS_AHEAD: 3,
 } as const;
+
+// ===========================================================================
+// HubSpot (implantação) — a "reunião" neste portal é o objeto Appointment.
+// O lead é validado pela etapa "Boas Vindas" e a reunião registrada lá.
+// ===========================================================================
+export const HUBSPOT = {
+  API: 'https://api.hubapi.com',
+  // Propriedade da EMPRESA que guarda o ID 3C (= ID do cliente no formulário).
+  COMPANY_ID_3C_PROPERTY: 'id_3c',
+  // Etapas "Boas Vindas" onde o lead deve estar para liberar o agendamento.
+  WELCOME_STAGE_IDS: ['1008450862', '1008378259'] as const, // CS-Teste, CS-Fechado
+  // Tipos de associação (HUBSPOT_DEFINED) do Appointment.
+  APPOINTMENT_ASSOC_TYPE: { contact: 906, deal: 944 } as const,
+} as const;

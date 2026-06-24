@@ -219,6 +219,11 @@ export const api = {
   getImplantationAvailability: (segment: Segment): Promise<ImplantationAvailability> =>
     request<ImplantationAvailability>(`/implantation/availability?segment=${segment}`),
 
+  validateImplantationClient: (clientId: string): Promise<{ found: boolean }> =>
+    request<{ found: boolean }>(
+      `/implantation/validate-client?clientId=${encodeURIComponent(clientId)}`,
+    ),
+
   bookImplantation: (
     payload: ImplantationPayload,
     idempotencyKey: string,
