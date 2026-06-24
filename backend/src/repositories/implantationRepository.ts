@@ -155,8 +155,10 @@ export async function countsForWindow(
   fromDate: string,
   toDate: string,
 ): Promise<SlotCount[]> {
+  // slot_date::text garante 'YYYY-MM-DD' (o pg converteria `date` para Date, o
+  // que quebrava a chave de contagem usada no cálculo de vagas).
   const { rows } = await query<SlotCount>(
-    `SELECT implanter, slot_date AS "slotDate", slot_kind AS "slotKind", count(*)::int AS count
+    `SELECT implanter, slot_date::text AS "slotDate", slot_kind AS "slotKind", count(*)::int AS count
        FROM implantations
        WHERE implanter::text = ANY($1) AND slot_date >= $2 AND slot_date <= $3
        GROUP BY implanter, slot_date, slot_kind`,

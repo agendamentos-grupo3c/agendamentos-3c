@@ -22,10 +22,12 @@ function SeatBadge({ slot }: { slot: ImplantationSlot }) {
   if (slot.capacity === 1) {
     return <span className="text-[11px] font-medium text-muted-foreground">Individual · 1 vaga</span>;
   }
+  // Mostra OCUPADAS/total (cresce conforme enche): 1/8, 2/8, …
+  const occupied = slot.capacity - slot.remaining;
   const scarce = slot.remaining <= 2;
   return (
     <span className={cn('text-[11px] font-medium', scarce ? 'text-destructive' : 'text-muted-foreground')}>
-      {slot.remaining}/{slot.capacity} vagas
+      {occupied}/{slot.capacity} ocupadas
     </span>
   );
 }
