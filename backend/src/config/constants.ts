@@ -202,6 +202,4 @@ export const HUBSPOT = {
   COMPANY_ID_3C_PROPERTY: 'id_3c',
   // Etapas "Boas Vindas" onde o lead deve estar para liberar o agendamento.
   WELCOME_STAGE_IDS: ['1008450862', '1008378259'] as const, // CS-Teste, CS-Fechado
-  // Tipos de associação (HUBSPOT_DEFINED) do Appointment.
-  APPOINTMENT_ASSOC_TYPE: { contact: 906, deal: 944 } as const,
 } as const;

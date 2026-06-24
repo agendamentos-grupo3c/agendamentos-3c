@@ -49,6 +49,7 @@ const assocIds = (j: AssocResult): string[] =>
 export interface WelcomeDeal {
   dealId: string;
   contactId: string | null;
+  companyId: string;
 }
 
 // Resolve o lead a partir do ID 3C: empresa (por id_3c) → deal numa etapa
@@ -92,7 +93,7 @@ export async function findWelcomeDeal(id3c: string): Promise<WelcomeDeal | null>
           { method: 'GET' },
           'HUBSPOT_ASSOC_FAILED',
         )) as AssocResult;
-        return { dealId, contactId: assocIds(contacts)[0] ?? null };
+        return { dealId, contactId: assocIds(contacts)[0] ?? null, companyId: company.id };
       }
     }
   }
@@ -108,45 +109,45 @@ export async function findOwnerIdByEmail(email: string): Promise<string | null> 
   return j.results?.[0]?.id ?? null;
 }
 
-export interface CreateAppointmentInput {
-  name: string;
+export interface CreateMeetingInput {
+  title: string;
   startISO: string;
   endISO: string;
   ownerId: string | null;
   dealId: string;
   contactId: string | null;
+  companyId: string;
 }
 
-// Cria o Appointment (a "reunião" neste portal) e associa ao deal e ao contato.
-// O HubSpot calcula a duração; o organizador (vendedor) vai em hubspot_owner_id
-// quando ele for um owner.
-export async function createAppointment(input: CreateAppointmentInput): Promise<{ appointmentId: string }> {
-  const properties: Record<string, string> = {
-    hs_appointment_name: input.name,
-    hs_appointment_start: input.startISO,
-    hs_appointment_end: input.endISO,
+// Cria uma MEETING (a "reunião" de verdade) pela API de engagements e associa ao
+// deal, à empresa e ao contato. O objeto de Meetings não é exposto na API v3
+// deste portal (sem scope), mas a API de engagements cria a mesma reunião.
+export async function createMeeting(input: CreateMeetingInput): Promise<{ meetingId: string }> {
+  const start = new Date(input.startISO).getTime();
+  const end = new Date(input.endISO).getTime();
+
+  const body: Record<string, unknown> = {
+    engagement: { active: true, type: 'MEETING', timestamp: start },
+    associations: {
+      contactIds: input.contactId ? [Number(input.contactId)] : [],
+      dealIds: [Number(input.dealId)],
+      companyIds: [Number(input.companyId)],
+    },
+    metadata: {
+      startTime: start,
+      endTime: end,
+      title: input.title,
+      meetingOutcome: 'SCHEDULED',
+    },
   };
-  if (input.ownerId) properties.hubspot_owner_id = input.ownerId;
+  // Organizador = vendedor logado, quando ele for um owner do HubSpot.
+  if (input.ownerId) (body.engagement as Record<string, unknown>).ownerId = Number(input.ownerId);
 
   const created = (await hsFetch(
-    '/crm/v3/objects/appointments',
-    { method: 'POST', body: JSON.stringify({ properties }) },
-    'HUBSPOT_APPOINTMENT_FAILED',
-  )) as { id: string };
+    '/engagements/v1/engagements',
+    { method: 'POST', body: JSON.stringify(body) },
+    'HUBSPOT_MEETING_FAILED',
+  )) as { engagement?: { id: number } };
 
-  // Associações via v4 (associação default — comprovadamente aceita).
-  await hsFetch(
-    `/crm/v4/objects/appointments/${created.id}/associations/default/deals/${input.dealId}`,
-    { method: 'PUT' },
-    'HUBSPOT_APPOINTMENT_ASSOC_FAILED',
-  );
-  if (input.contactId) {
-    await hsFetch(
-      `/crm/v4/objects/appointments/${created.id}/associations/default/contacts/${input.contactId}`,
-      { method: 'PUT' },
-      'HUBSPOT_APPOINTMENT_ASSOC_FAILED',
-    );
-  }
-
-  return { appointmentId: created.id };
+  return { meetingId: String(created.engagement?.id) };
 }

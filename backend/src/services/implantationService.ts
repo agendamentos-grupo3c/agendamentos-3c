@@ -1,7 +1,7 @@
 import { IMPLANTATION_SLOTS, SEGMENT_IMPLANTERS, type Segment } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
 import { addGuestToTraining, getImplanterCalendarId } from '../integrations/googleCalendar.js';
-import { createAppointment, findOwnerIdByEmail, findWelcomeDeal } from '../integrations/hubspot.js';
+import { createMeeting, findOwnerIdByEmail, findWelcomeDeal } from '../integrations/hubspot.js';
 import { spDateString } from '../lib/implantationPolicy.js';
 import { logger } from '../lib/logger.js';
 import { toE164 } from '../lib/phone.js';
@@ -97,15 +97,16 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         pending.push('hubspot');
       } else {
         const ownerId = await findOwnerIdByEmail(booking.sellerEmail);
-        const { appointmentId } = await createAppointment({
-          name: `Implantação — ${booking.companyName}`,
+        const { meetingId } = await createMeeting({
+          title: `Implantação — ${booking.companyName}`,
           startISO: booking.scheduledStart,
           endISO: booking.scheduledEnd,
           ownerId,
           dealId: deal.dealId,
           contactId: deal.contactId,
+          companyId: deal.companyId,
         });
-        const updated = await setHubspotMeetingId(booking.id, appointmentId);
+        const updated = await setHubspotMeetingId(booking.id, meetingId);
         booking.hubspotMeetingId = updated.hubspotMeetingId;
       }
     } catch (err) {
