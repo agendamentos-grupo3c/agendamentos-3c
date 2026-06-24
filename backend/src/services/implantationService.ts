@@ -1,7 +1,12 @@
-import { IMPLANTATION_SLOTS, SEGMENT_IMPLANTERS, type Segment } from '../config/constants.js';
+import { HUBSPOT, IMPLANTATION_SLOTS, SEGMENT_IMPLANTERS, type Segment } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
 import { addGuestToTraining, getImplanterCalendarId } from '../integrations/googleCalendar.js';
-import { createMeeting, findOwnerIdByEmail, findWelcomeDeal } from '../integrations/hubspot.js';
+import {
+  createMeeting,
+  findOwnerIdByEmail,
+  findWelcomeDeal,
+  moveDealToStage,
+} from '../integrations/hubspot.js';
 import { spDateString } from '../lib/implantationPolicy.js';
 import { logger } from '../lib/logger.js';
 import { toE164 } from '../lib/phone.js';
@@ -108,6 +113,11 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         });
         const updated = await setHubspotMeetingId(booking.id, meetingId);
         booking.hubspotMeetingId = updated.hubspotMeetingId;
+
+        // Move o lead para a etapa Implantação do mesmo funil (o n8n vai reagir
+        // a essa transição para enviar o e-mail de boas-vindas ao cliente).
+        const implStage = HUBSPOT.WELCOME_TO_IMPLANTATION_STAGE[deal.welcomeStageId];
+        if (implStage) await moveDealToStage(deal.dealId, implStage);
       }
     } catch (err) {
       logger.warn({ err, implantationId: booking.id }, 'implantation hubspot dispatch pending');

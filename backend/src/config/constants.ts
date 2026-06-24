@@ -202,4 +202,9 @@ export const HUBSPOT = {
   COMPANY_ID_3C_PROPERTY: 'id_3c',
   // Etapas "Boas Vindas" onde o lead deve estar para liberar o agendamento.
   WELCOME_STAGE_IDS: ['1008450862', '1008378259'] as const, // CS-Teste, CS-Fechado
+  // Ao agendar, o deal é movido da etapa Boas Vindas → Implantação do MESMO funil.
+  WELCOME_TO_IMPLANTATION_STAGE: {
+    '1008450862': '1008450864', // [3C] CS - Teste
+    '1008378259': '1008452444', // [3C] CS - Fechado
+  } as Record<string, string>,
 } as const;

@@ -50,6 +50,7 @@ export interface WelcomeDeal {
   dealId: string;
   contactId: string | null;
   companyId: string;
+  welcomeStageId: string;
 }
 
 // Resolve o lead a partir do ID 3C: empresa (por id_3c) → deal numa etapa
@@ -93,11 +94,25 @@ export async function findWelcomeDeal(id3c: string): Promise<WelcomeDeal | null>
           { method: 'GET' },
           'HUBSPOT_ASSOC_FAILED',
         )) as AssocResult;
-        return { dealId, contactId: assocIds(contacts)[0] ?? null, companyId: company.id };
+        return {
+          dealId,
+          contactId: assocIds(contacts)[0] ?? null,
+          companyId: company.id,
+          welcomeStageId: deal.properties.dealstage,
+        };
       }
     }
   }
   return null;
+}
+
+// Move o deal para outra etapa (ex.: Boas Vindas → Implantação após agendar).
+export async function moveDealToStage(dealId: string, dealstage: string): Promise<void> {
+  await hsFetch(
+    `/crm/v3/objects/deals/${dealId}`,
+    { method: 'PATCH', body: JSON.stringify({ properties: { dealstage } }) },
+    'HUBSPOT_DEAL_STAGE_FAILED',
+  );
 }
 
 export async function findOwnerIdByEmail(email: string): Promise<string | null> {
