@@ -1,4 +1,4 @@
-import type { Implanter, ImplantationSlotKind, Segment } from '../config/constants.js';
+import type { Implanter, ImplantationProduct, Segment } from '../config/constants.js';
 import { query, withTransaction } from '../lib/db.js';
 
 export type ImplantationStatus = 'agendado' | 'compareceu' | 'no_show';
@@ -13,7 +13,7 @@ export interface Implantation {
   segment: Segment;
   implanter: Implanter;
   slotDate: string;
-  slotKind: ImplantationSlotKind;
+  product: ImplantationProduct | null;
   scheduledStart: string;
   scheduledEnd: string;
   googleEventId: string | null;
@@ -37,7 +37,7 @@ const COLUMNS = `
   segment,
   implanter,
   slot_date AS "slotDate",
-  slot_kind AS "slotKind",
+  product,
   scheduled_start AS "scheduledStart",
   scheduled_end AS "scheduledEnd",
   google_event_id AS "googleEventId",
@@ -71,7 +71,7 @@ export interface InsertImplantationInput {
   segment: Segment;
   implanter: Implanter;
   slotDate: string;
-  slotKind: ImplantationSlotKind;
+  product: ImplantationProduct;
   scheduledStart: string;
   scheduledEnd: string;
   sellerEmail: string;
@@ -79,28 +79,58 @@ export interface InsertImplantationInput {
   idempotencyKey: string;
 }
 
-// Reserva à prova de corrida: trava lógica por (implantador, dia, slot) com
-// advisory lock transacional, conta as reservas existentes e só insere se
-// houver vaga. Retorna null se o slot lotou (capacidade atingida).
+interface SessionRow {
+  scheduled_start: string;
+  scheduled_end: string;
+  product: ImplantationProduct;
+  individual: boolean;
+  count: number;
+}
+
+// Reserva à prova de corrida: advisory lock por (implantador, dia) e então
+// decide ENTRAR numa sessão existente (mesmo horário/produto/tipo, com vaga) ou
+// ABRIR uma nova (sem sobreposição com outras sessões). Retorna null se não der.
 export async function insertWithCapacity(
   input: InsertImplantationInput,
   capacity: number,
 ): Promise<Implantation | null> {
   return withTransaction(async (client) => {
-    const lockKey = `${input.implanter}|${input.slotDate}|${input.slotKind}`;
+    const lockKey = `${input.implanter}|${input.slotDate}`;
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [lockKey]);
 
-    const { rows: counted } = await client.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM implantations
-         WHERE implanter = $1 AND slot_date = $2 AND slot_kind = $3`,
-      [input.implanter, input.slotDate, input.slotKind],
+    const { rows: sessions } = await client.query<SessionRow>(
+      `SELECT scheduled_start, scheduled_end, product::text AS product,
+              bool_or(segment = 'enterprise') AS individual, count(*)::int AS count
+         FROM implantations
+         WHERE implanter = $1 AND slot_date = $2
+         GROUP BY scheduled_start, scheduled_end, product`,
+      [input.implanter, input.slotDate],
     );
-    if ((counted[0]?.n ?? 0) >= capacity) return null;
+
+    const start = new Date(input.scheduledStart).getTime();
+    const end = new Date(input.scheduledEnd).getTime();
+    const wantIndividual = input.segment === 'enterprise';
+
+    const at = sessions.find((s) => new Date(s.scheduled_start).getTime() === start);
+    if (at) {
+      // Entrar numa sessão existente: produto e tipo precisam casar e ter vaga.
+      if (at.product !== input.product) return null;
+      if (Boolean(at.individual) !== wantIndividual) return null;
+      if (at.count >= capacity) return null;
+    } else {
+      // Abrir nova sessão: não pode sobrepor nenhuma sessão do dia.
+      const overlaps = sessions.some((s) => {
+        const ss = new Date(s.scheduled_start).getTime();
+        const se = new Date(s.scheduled_end).getTime();
+        return start < se && ss < end;
+      });
+      if (overlaps) return null;
+    }
 
     const { rows } = await client.query<Implantation>(
       `INSERT INTO implantations
          (company_name, client_name, client_email, client_phone_e164, client_id,
-          segment, implanter, slot_date, slot_kind, scheduled_start, scheduled_end,
+          segment, implanter, slot_date, product, scheduled_start, scheduled_end,
           seller_email, seller_name, idempotency_key, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'agendado')
        RETURNING ${COLUMNS}`,
@@ -113,7 +143,7 @@ export async function insertWithCapacity(
         input.segment,
         input.implanter,
         input.slotDate,
-        input.slotKind,
+        input.product,
         input.scheduledStart,
         input.scheduledEnd,
         input.sellerEmail,
@@ -141,27 +171,28 @@ export async function findById(id: string): Promise<Implantation | null> {
   return rows[0] ?? null;
 }
 
-export interface SlotCount {
+export interface SessionAggregate {
   implanter: Implanter;
-  slotDate: string;
-  slotKind: ImplantationSlotKind;
+  scheduledStart: string;
+  scheduledEnd: string;
+  product: ImplantationProduct;
+  individual: boolean;
   count: number;
 }
 
-// Contagem de reservas por (implantador, dia, slot) na janela — base do placar
-// de vagas restantes.
-export async function countsForWindow(
+// Sessões existentes (agrupadas por implantador + horário + produto) na janela —
+// base do cálculo de disponibilidade (entrar numa sessão ou abrir nova).
+export async function listSessions(
   implanters: Implanter[],
   fromDate: string,
   toDate: string,
-): Promise<SlotCount[]> {
-  // slot_date::text garante 'YYYY-MM-DD' (o pg converteria `date` para Date, o
-  // que quebrava a chave de contagem usada no cálculo de vagas).
-  const { rows } = await query<SlotCount>(
-    `SELECT implanter, slot_date::text AS "slotDate", slot_kind AS "slotKind", count(*)::int AS count
+): Promise<SessionAggregate[]> {
+  const { rows } = await query<SessionAggregate>(
+    `SELECT implanter, scheduled_start AS "scheduledStart", scheduled_end AS "scheduledEnd",
+            product::text AS product, bool_or(segment = 'enterprise') AS individual, count(*)::int AS count
        FROM implantations
-       WHERE implanter::text = ANY($1) AND slot_date >= $2 AND slot_date <= $3
-       GROUP BY implanter, slot_date, slot_kind`,
+       WHERE implanter::text = ANY($1) AND slot_date >= $2 AND slot_date <= $3 AND product IS NOT NULL
+       GROUP BY implanter, scheduled_start, scheduled_end, product`,
     [implanters, fromDate, toDate],
   );
   return rows;
@@ -185,31 +216,29 @@ export async function listByImplanter(implanter: Implanter): Promise<Implantatio
   return rows;
 }
 
-// Todas as reservas de um mesmo slot (implantador + dia + tipo) — base do
-// resumo da reunião (quem compareceu / não).
-export async function listBySlot(
+// Todas as reservas de uma mesma sessão (implantador + horário de início) —
+// base do resumo da reunião (quem compareceu / não).
+export async function listBySessionStart(
   implanter: Implanter,
-  slotDate: string,
-  slotKind: ImplantationSlotKind,
+  scheduledStart: string,
 ): Promise<Implantation[]> {
   const { rows } = await query<Implantation>(
     `SELECT ${COLUMNS} FROM implantations
-       WHERE implanter = $1 AND slot_date = $2 AND slot_kind = $3
+       WHERE implanter = $1 AND scheduled_start = $2
        ORDER BY created_at`,
-    [implanter, slotDate, slotKind],
+    [implanter, scheduledStart],
   );
   return rows;
 }
 
-export async function countForSlot(
+export async function countForSession(
   implanter: Implanter,
-  slotDate: string,
-  slotKind: ImplantationSlotKind,
+  scheduledStart: string,
 ): Promise<number> {
   const { rows } = await query<{ n: number }>(
     `SELECT count(*)::int AS n FROM implantations
-       WHERE implanter = $1 AND slot_date = $2 AND slot_kind = $3`,
-    [implanter, slotDate, slotKind],
+       WHERE implanter = $1 AND scheduled_start = $2`,
+    [implanter, scheduledStart],
   );
   return rows[0]?.n ?? 0;
 }

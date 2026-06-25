@@ -1,4 +1,13 @@
-import { HUBSPOT, IMPLANTATION_SLOTS, SEGMENT_IMPLANTERS, type Segment } from '../config/constants.js';
+import {
+  HUBSPOT,
+  IMPLANTATION_CAPACITY,
+  MEETING_TYPE_BY_KIND,
+  PRODUCT_LABELS,
+  SEGMENT_IMPLANTERS,
+  kindForSegment,
+  type ImplantationProduct,
+  type Segment,
+} from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
 import {
   addGuestToTraining,
@@ -22,7 +31,7 @@ import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
   type Implantation,
   UNIQUE_CONSTRAINTS,
-  countForSlot,
+  countForSession,
   findByIdempotencyKey,
   insertWithCapacity,
   markN8nNotified,
@@ -44,6 +53,7 @@ export interface BookImplantationInput {
     phone: string;
     clientId: string;
     segment: Segment;
+    product: ImplantationProduct;
   };
   slot: ImplantationSlotPayload;
 }
@@ -91,15 +101,17 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         booking.clientEmail,
       );
       if (!result) {
-        const coletiva = booking.slotKind !== 'individual';
+        const coletiva = kindForSegment(booking.segment) === 'coletiva';
+        const productLabel = booking.product ? PRODUCT_LABELS[booking.product] : 'Implantação';
         result = await createEvent({
           calendarId,
+          // Nome diferencia o produto, para organização da agenda.
           summary: coletiva
-            ? 'Treinamento de implantação (coletiva)'
-            : `Implantação — ${booking.companyName}`,
+            ? `Implantação ${productLabel} (coletiva)`
+            : `Implantação ${productLabel} — ${booking.companyName}`,
           description: coletiva
-            ? 'Sessão coletiva de implantação do Grupo 3C.'
-            : `Cliente: ${booking.clientName} — ${booking.companyName}`,
+            ? `Sessão coletiva de implantação (${productLabel}) do Grupo 3C.`
+            : `Cliente: ${booking.clientName} — ${booking.companyName} (${productLabel})`,
           start: new Date(booking.scheduledStart),
           end: new Date(booking.scheduledEnd),
           attendeeEmail: booking.clientEmail,
@@ -147,8 +159,7 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         // Tipo da reunião + link do Meet na "localização". Best-effort isolado:
         // não pode bloquear o move de etapa nem o agendamento.
         const props: Record<string, string> = {};
-        const meetingType = HUBSPOT.MEETING_TYPE_BY_SLOT[booking.slotKind];
-        if (meetingType) props.hs_activity_type = meetingType;
+        props.hs_activity_type = MEETING_TYPE_BY_KIND[kindForSegment(booking.segment)];
         if (booking.meetingUrl) props.hs_meeting_location = booking.meetingUrl;
         if (Object.keys(props).length > 0) {
           try {
@@ -168,8 +179,8 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
   // Por último, para já ter o meetingUrl (link do Meet) do passo do calendário.
   if (!booking.n8nNotifiedAt) {
     try {
-      const occupied = await countForSlot(booking.implanter, booking.slotDate, booking.slotKind);
-      const capacity = IMPLANTATION_SLOTS.find((t) => t.kind === booking.slotKind)?.capacity ?? 0;
+      const occupied = await countForSession(booking.implanter, booking.scheduledStart);
+      const capacity = IMPLANTATION_CAPACITY[kindForSegment(booking.segment)];
       await notifyImplantationScheduled({
         tipo: 'agendada',
         companyName: booking.companyName,
@@ -178,7 +189,7 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         clientPhoneE164: booking.clientPhoneE164,
         segment: booking.segment,
         implanter: booking.implanter,
-        slotKind: booking.slotKind,
+        product: booking.product ?? '',
         scheduledStartISO: booking.scheduledStart,
         meetingUrl: booking.meetingUrl,
         sellerEmail: booking.sellerEmail,
@@ -203,14 +214,13 @@ export async function bookImplantation(input: BookImplantationInput): Promise<Bo
     return { booking: existing, pending: await runDispatches(existing) };
   }
 
-  const { segment } = input.form;
+  const { segment, product } = input.form;
   const { slot } = input;
 
-  // O implantador do token tem que atender o segmento, e o slot precisa existir.
+  // O implantador do token tem que atender o segmento e o produto do token tem
+  // que casar com o do formulário (token é assinado; validamos a coerência).
   if (!SEGMENT_IMPLANTERS[segment].includes(slot.implanter)) throw invalidSlot();
-  const template = IMPLANTATION_SLOTS.find((t) => t.kind === slot.kind);
-  if (!template) throw invalidSlot();
-  if (template.onlyImplanter && template.onlyImplanter !== slot.implanter) throw invalidSlot();
+  if (slot.product !== product) throw invalidSlot();
 
   // Agenda do implantador pausada entre ver e enviar → recusa.
   if (!(await isSubjectActive(slot.implanter))) {
@@ -221,6 +231,7 @@ export async function bookImplantation(input: BookImplantationInput): Promise<Bo
     });
   }
 
+  const capacity = IMPLANTATION_CAPACITY[kindForSegment(segment)];
   let booking: Implantation | null;
   try {
     booking = await insertWithCapacity(
@@ -233,14 +244,14 @@ export async function bookImplantation(input: BookImplantationInput): Promise<Bo
         segment,
         implanter: slot.implanter,
         slotDate: spDateString(new Date(slot.startISO)),
-        slotKind: slot.kind,
+        product,
         scheduledStart: slot.startISO,
         scheduledEnd: slot.endISO,
         sellerEmail: input.sellerEmail,
         sellerName: input.sellerName,
         idempotencyKey: input.idempotencyKey,
       },
-      template.capacity,
+      capacity,
     );
   } catch (err) {
     if (uniqueViolationConstraint(err) === UNIQUE_CONSTRAINTS.IDEMPOTENCY) {
@@ -257,7 +268,7 @@ export async function bookImplantation(input: BookImplantationInput): Promise<Bo
     metadata: {
       implantationId: booking.id,
       implanter: booking.implanter,
-      slotKind: booking.slotKind,
+      product: booking.product,
       slotDate: booking.slotDate,
     },
   });

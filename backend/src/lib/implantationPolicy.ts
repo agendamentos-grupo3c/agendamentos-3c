@@ -1,17 +1,4 @@
-import {
-  IMPLANTATION,
-  IMPLANTATION_SLOTS,
-  type Implanter,
-  type ImplantationSlotKind,
-} from '../config/constants.js';
-
-export interface ImplantationSlot {
-  implanter: Implanter;
-  kind: ImplantationSlotKind;
-  start: Date;
-  end: Date;
-  capacity: number;
-}
+import { IMPLANTATION, type ImplantationKind, type ImplantationProduct } from '../config/constants.js';
 
 // Brasil não observa horário de verão desde 2019 → offset fixo -03:00.
 const OFFSET = '-03:00';
@@ -36,28 +23,92 @@ export function spDateString(instant: Date): string {
   return dateFmt.format(instant);
 }
 
-// Função pura: gera os slots candidatos de um implantador para hoje + os
-// próximos dias úteis (WEEKDAYS_AHEAD), omitindo horários já passados e o slot
-// individual para quem não é o titular. A capacidade real (vagas) é aplicada
-// por quem chama, contando as reservas no banco.
-export function generateImplantationSlots(now: Date, implanter: Implanter): ImplantationSlot[] {
-  const slots: ImplantationSlot[] = [];
-  let weekdays = 0;
+// Próximos dias ÚTEIS (hoje + WEEKDAYS_AHEAD), como 'YYYY-MM-DD'.
+export function implantationDays(now: Date): string[] {
+  const days: string[] = [];
+  for (let offset = 0; days.length < IMPLANTATION.WEEKDAYS_AHEAD && offset < 14; offset++) {
+    const day = new Date(now.getTime() + offset * DAY_MS);
+    if (WEEKEND.has(weekdayFmt.format(day))) continue;
+    days.push(dateFmt.format(day));
+  }
+  return days;
+}
 
-  // offset percorre dias corridos; só contamos dias úteis até o limite.
-  for (let offset = 0; weekdays < IMPLANTATION.WEEKDAYS_AHEAD && offset < 14; offset++) {
-    const dayInstant = new Date(now.getTime() + offset * DAY_MS);
-    if (WEEKEND.has(weekdayFmt.format(dayInstant))) continue;
-    weekdays++;
+// Sessão já existente na agenda do implantador (vinda do banco).
+export interface ExistingSession {
+  startISO: string;
+  endISO: string;
+  product: ImplantationProduct;
+  kind: ImplantationKind;
+  count: number;
+}
 
-    const date = dateFmt.format(dayInstant);
-    for (const tpl of IMPLANTATION_SLOTS) {
-      if (tpl.onlyImplanter && tpl.onlyImplanter !== implanter) continue;
-      const start = new Date(`${date}T${tpl.start}:00${OFFSET}`);
-      const end = new Date(`${date}T${tpl.end}:00${OFFSET}`);
-      if (start.getTime() <= now.getTime()) continue;
-      slots.push({ implanter, kind: tpl.kind, start, end, capacity: tpl.capacity });
+// Opção de horário oferecida ao vendedor (entrar numa sessão ou abrir nova).
+export interface SlotOption {
+  startISO: string;
+  endISO: string;
+  remaining: number;
+  capacity: number;
+  isNew: boolean;
+}
+
+function bounds(date: string, hm: readonly [string, string]): [Date, Date] {
+  return [new Date(`${date}T${hm[0]}:00${OFFSET}`), new Date(`${date}T${hm[1]}:00${OFFSET}`)];
+}
+
+// Para um dia: dentro de cada janela, oferece (a) sessões abertas do MESMO
+// produto/tipo com vaga (entrar) e (b) o próximo bloco livre se a duração couber
+// (abrir nova). Sessões empacotam sequencialmente a partir do início da janela.
+export function optionsForDay(
+  now: Date,
+  date: string,
+  product: ImplantationProduct,
+  durationMin: number,
+  kind: ImplantationKind,
+  capacity: number,
+  sessions: ExistingSession[],
+): SlotOption[] {
+  const options: SlotOption[] = [];
+  const durMs = durationMin * 60 * 1000;
+
+  for (const hm of IMPLANTATION.WINDOWS) {
+    const [wStart, wEnd] = bounds(date, hm);
+    const inWindow = sessions
+      .map((s) => ({ s, start: new Date(s.startISO), end: new Date(s.endISO) }))
+      .filter(({ start }) => start.getTime() >= wStart.getTime() && start.getTime() < wEnd.getTime())
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    // (a) Entrar numa sessão aberta do mesmo produto/tipo com vaga.
+    for (const { s, start } of inWindow) {
+      if (
+        s.product === product &&
+        s.kind === kind &&
+        s.count < capacity &&
+        start.getTime() > now.getTime()
+      ) {
+        options.push({
+          startISO: s.startISO,
+          endISO: s.endISO,
+          remaining: capacity - s.count,
+          capacity,
+          isNew: false,
+        });
+      }
+    }
+
+    // (b) Abrir nova sessão no próximo bloco livre (após a última sessão).
+    const lastEnd = inWindow.length ? inWindow[inWindow.length - 1]!.end : wStart;
+    const nextStart = lastEnd.getTime() > wStart.getTime() ? lastEnd : wStart;
+    const nextEnd = new Date(nextStart.getTime() + durMs);
+    if (nextEnd.getTime() <= wEnd.getTime() && nextStart.getTime() > now.getTime()) {
+      options.push({
+        startISO: nextStart.toISOString(),
+        endISO: nextEnd.toISOString(),
+        remaining: capacity,
+        capacity,
+        isNew: true,
+      });
     }
   }
-  return slots;
+  return options;
 }

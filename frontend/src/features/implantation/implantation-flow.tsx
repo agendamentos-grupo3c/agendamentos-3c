@@ -31,6 +31,7 @@ export function ImplantationFlow() {
           clientId: formData.clientId,
           phone: formData.phone,
           segment: formData.segment,
+          product: formData.product,
           slotToken: slot.token,
         },
         crypto.randomUUID(),
@@ -63,6 +64,7 @@ export function ImplantationFlow() {
     return (
       <ImplantationAgenda
         segment={formData.segment}
+        product={formData.product}
         notice={notice}
         onBack={() => setStep('form')}
         onConfirm={handleConfirm}

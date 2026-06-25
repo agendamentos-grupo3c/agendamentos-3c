@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-import type { Implanter, ImplantationSlotKind } from '../config/constants.js';
+import type { Implanter, ImplantationProduct } from '../config/constants.js';
 import { env } from '../config/env.js';
 import type { Collaborator } from './schedulingPolicy.js';
 
@@ -12,10 +12,11 @@ export interface SlotPayload {
   endISO: string;
 }
 
-// Token de slot do fluxo de Implantação.
+// Token de slot do fluxo de Implantação. Carrega o produto (define a duração) e
+// o horário escolhido (início/fim) da sessão.
 export interface ImplantationSlotPayload {
   implanter: Implanter;
-  kind: ImplantationSlotKind;
+  product: ImplantationProduct;
   startISO: string;
   endISO: string;
 }

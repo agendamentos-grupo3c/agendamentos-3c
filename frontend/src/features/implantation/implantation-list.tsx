@@ -10,7 +10,7 @@ import { useCurrentUser } from '@/features/auth/auth-guard';
 import {
   api,
   type ImplantationBooking,
-  type ImplantationSlotKind,
+  type ImplantationProduct,
   type ImplantationStatus,
   type Segment,
 } from '@/lib/api';
@@ -22,10 +22,11 @@ const STATUS_META: Record<ImplantationStatus, { label: string; className: string
   no_show: { label: 'No-show', className: 'bg-red-500/10 text-red-500 dark:text-red-300' },
 };
 
-const SLOT_LABELS: Record<ImplantationSlotKind, string> = {
-  coletiva_manha: 'Coletiva (manhã)',
-  individual: 'Individual',
-  coletiva_tarde: 'Coletiva (tarde)',
+const PRODUCT_LABELS: Record<ImplantationProduct, string> = {
+  discador: 'Discador',
+  omni: 'Omni',
+  ura: 'URA',
+  pabx: 'PABX',
 };
 
 const SEGMENT_LABELS: Record<Segment, string> = {
@@ -53,7 +54,7 @@ type Decision = 'compareceu' | 'no_show';
 
 interface Slot {
   key: string;
-  slotKind: ImplantationSlotKind;
+  product: ImplantationProduct | null;
   scheduledStart: string;
   bookings: ImplantationBooking[];
 }
@@ -61,10 +62,11 @@ interface Slot {
 function groupBySlot(bookings: ImplantationBooking[]): Slot[] {
   const map = new Map<string, Slot>();
   for (const b of bookings) {
-    const key = `${b.slotKind}|${b.scheduledStart}`;
+    // Sessão = implantador (lista já é dele) + horário de início.
+    const key = b.scheduledStart;
     const slot = map.get(key) ?? {
       key,
-      slotKind: b.slotKind,
+      product: b.product,
       scheduledStart: b.scheduledStart,
       bookings: [],
     };
@@ -110,7 +112,9 @@ function SlotCard({ slot, canEdit, onChanged }: { slot: Slot; canEdit: boolean; 
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const isColetiva = slot.slotKind !== 'individual';
+  // Coletiva = qualquer segmento != enterprise (enterprise é individual).
+  const isColetiva = slot.bookings.some((b) => b.segment !== 'enterprise');
+  const productLabel = slot.product ? PRODUCT_LABELS[slot.product] : 'Implantação';
   const pending = slot.bookings.filter((b) => b.status === 'agendado');
   const attendedNote = slot.bookings.find((b) => b.status === 'compareceu')?.attendanceNotes;
   const allDecided = pending.length > 0 && pending.every((b) => decisions[b.id]);
@@ -136,8 +140,8 @@ function SlotCard({ slot, canEdit, onChanged }: { slot: Slot; canEdit: boolean; 
     <Card className="rounded-2xl">
       <CardHeader className="space-y-0.5">
         <CardTitle className="text-base">
-          {SLOT_LABELS[slot.slotKind]}
-          {isColetiva && ` · ${slot.bookings.length} participante(s)`}
+          {`Implantação ${productLabel}`}
+          {isColetiva ? ` · coletiva · ${slot.bookings.length} participante(s)` : ' · individual'}
         </CardTitle>
         <p className="text-sm text-muted-foreground">{whenFmt.format(new Date(slot.scheduledStart))}</p>
       </CardHeader>

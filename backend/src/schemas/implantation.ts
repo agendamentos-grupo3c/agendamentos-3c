@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { FORM, SEGMENTS } from '../config/constants.js';
+import { FORM, PRODUCTS, SEGMENTS } from '../config/constants.js';
 import { isValidBrPhone } from '../lib/phone.js';
 
 // Dados do lead de implantação (entrada manual; HubSpot fica para depois).
@@ -11,6 +11,7 @@ export const implantationFormSchema = z.object({
   clientId: z.string().trim().min(1, 'Informe o ID do cliente.').max(FORM.TEXT_MAX),
   phone: z.string().trim().refine(isValidBrPhone, 'Telefone inválido. Informe DDD + número.'),
   segment: z.enum(SEGMENTS),
+  product: z.enum(PRODUCTS),
 });
 
 export const implantationSubmitSchema = implantationFormSchema.extend({

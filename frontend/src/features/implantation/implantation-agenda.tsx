@@ -5,7 +5,13 @@ import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { api, type ImplantationAvailability, type ImplantationSlot, type Segment } from '@/lib/api';
+import {
+  api,
+  type ImplantationAvailability,
+  type ImplantationProduct,
+  type ImplantationSlot,
+  type Segment,
+} from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 function groupByDate(slots: ImplantationSlot[]): [string, ImplantationSlot[]][] {
@@ -73,11 +79,13 @@ function SlotGrid({
 
 export function ImplantationAgenda({
   segment,
+  product,
   notice,
   onBack,
   onConfirm,
 }: {
   segment: Segment;
+  product: ImplantationProduct;
   notice?: string;
   onBack: () => void;
   onConfirm: (slot: ImplantationSlot) => void;
@@ -91,13 +99,13 @@ export function ImplantationAgenda({
   React.useEffect(() => {
     let active = true;
     api
-      .getImplantationAvailability(segment)
+      .getImplantationAvailability(segment, product)
       .then((d) => active && (setData(d), setLoading(false)))
       .catch(() => active && (setError(true), setLoading(false)));
     return () => {
       active = false;
     };
-  }, [segment]);
+  }, [segment, product]);
 
   if (loading) {
     return <p className="text-center text-muted-foreground">Carregando horários…</p>;

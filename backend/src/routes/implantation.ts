@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
-import { SEGMENTS } from '../config/constants.js';
+import { PRODUCTS, SEGMENTS } from '../config/constants.js';
 import { AppError } from '../errors/AppError.js';
 import { getImplanterForEmail } from '../lib/roles.js';
 import { decodeImplantationToken } from '../lib/slotToken.js';
@@ -19,7 +19,7 @@ import { attendImplantation, noShowImplantation } from '../services/implantation
 import { bookImplantation } from '../services/implantationService.js';
 
 const paramsSchema = z.object({ id: z.string().uuid() });
-const availabilityQuerySchema = z.object({ segment: z.enum(SEGMENTS) });
+const availabilityQuerySchema = z.object({ segment: z.enum(SEGMENTS), product: z.enum(PRODUCTS) });
 
 // Menor dado possível ao front — sem e-mails de agenda/IDs de evento internos.
 function toPublic(b: Implantation) {
@@ -30,7 +30,7 @@ function toPublic(b: Implantation) {
     clientEmail: b.clientEmail,
     segment: b.segment,
     implanter: b.implanter,
-    slotKind: b.slotKind,
+    product: b.product,
     scheduledStart: b.scheduledStart,
     meetingUrl: b.meetingUrl,
     status: b.status,
@@ -55,9 +55,9 @@ export async function implantationRoutes(app: FastifyInstance): Promise<void> {
   app.get('/implantation/availability', { preHandler: requireAuth }, async (req) => {
     const parsed = availabilityQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      throw new AppError({ code: 'BAD_REQUEST', statusCode: 400, publicMessage: 'Segmento inválido.' });
+      throw new AppError({ code: 'BAD_REQUEST', statusCode: 400, publicMessage: 'Parâmetros inválidos.' });
     }
-    return getImplantationAvailability(new Date(), parsed.data.segment);
+    return getImplantationAvailability(new Date(), parsed.data.segment, parsed.data.product);
   });
 
   // Validação do lead: confirma que o ID do cliente (id_3c) tem um negócio na
@@ -117,6 +117,7 @@ export async function implantationRoutes(app: FastifyInstance): Promise<void> {
           phone: parsed.data.phone,
           clientId: parsed.data.clientId,
           segment: parsed.data.segment,
+          product: parsed.data.product,
         },
         slot,
       });

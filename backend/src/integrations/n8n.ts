@@ -41,7 +41,7 @@ export interface ImplantationScheduledNotification {
   clientPhoneE164: string;
   segment: string;
   implanter: string;
-  slotKind: string;
+  product: string;
   scheduledStartISO: string;
   meetingUrl: string | null;
   sellerEmail: string;
@@ -58,7 +58,7 @@ export interface ImplantationOutcomeParticipant {
 export interface ImplantationOutcomeNotification {
   tipo: 'desfecho';
   implanter: string;
-  slotKind: string;
+  product: string;
   scheduledStartISO: string;
   attended: ImplantationOutcomeParticipant[];
   noShow: ImplantationOutcomeParticipant[];

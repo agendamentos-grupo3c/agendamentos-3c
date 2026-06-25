@@ -1,34 +1,34 @@
 import {
   IMPLANTATION,
-  IMPLANTATION_SLOT_LABELS,
+  IMPLANTATION_CAPACITY,
+  PRODUCT_DURATION_MIN,
   SEGMENT_IMPLANTERS,
+  kindForSegment,
   type Implanter,
-  type ImplantationSlotKind,
+  type ImplantationProduct,
   type Segment,
 } from '../config/constants.js';
 import {
-  generateImplantationSlots,
-  spDateString,
-  type ImplantationSlot,
+  implantationDays,
+  optionsForDay,
+  type ExistingSession,
+  type SlotOption,
 } from '../lib/implantationPolicy.js';
 import { encodeImplantationToken } from '../lib/slotToken.js';
 import { listInactiveSubjects } from '../repositories/agendaRepository.js';
-import { countsForWindow, lastImplanterForSegment } from '../repositories/implantationRepository.js';
+import { lastImplanterForSegment, listSessions } from '../repositories/implantationRepository.js';
 
 export interface AvailableImplantationSlot {
   token: string;
   dateLabel: string;
   timeLabel: string;
-  kind: ImplantationSlotKind;
-  kindLabel: string;
   remaining: number;
   capacity: number;
   startISO: string;
 }
 
-// O implantador é OMITIDO de propósito: o vendedor escolhe só o horário (evita
-// favoritismo). "best" = horários do próximo da vez (rodízio); "others" = demais
-// elegíveis, revelados sob demanda quando o próximo da vez não tem o horário.
+// O implantador é OMITIDO de propósito (anti-favoritismo): "best" = horários do
+// próximo da vez (rodízio); "others" = demais elegíveis, revelados sob demanda.
 export interface ImplantationAvailability {
   best: AvailableImplantationSlot[];
   others: AvailableImplantationSlot[];
@@ -47,73 +47,69 @@ const timeLabelFmt = new Intl.DateTimeFormat('pt-BR', {
   minute: '2-digit',
 });
 
-const countKey = (implanter: Implanter, date: string, kind: ImplantationSlotKind): string =>
-  `${implanter}|${date}|${kind}`;
-
-// Rodízio por alternância: o próximo da vez é o elegível diferente do último
-// agendado no segmento. Sem histórico (ou segmento de 1 implantador) → o primeiro.
+// Rodízio: o próximo da vez é o elegível diferente do último agendado no
+// segmento. Sem histórico (ou segmento de 1 implantador) → o primeiro.
 function pickPreferred(eligible: Implanter[], last: Implanter | null): Implanter {
   if (eligible.length === 1) return eligible[0]!;
   return eligible.find((i) => i !== last) ?? eligible[0]!;
 }
 
+function toSlot(implanter: Implanter, product: ImplantationProduct, opt: SlotOption): AvailableImplantationSlot {
+  const start = new Date(opt.startISO);
+  const end = new Date(opt.endISO);
+  return {
+    token: encodeImplantationToken({ implanter, product, startISO: opt.startISO, endISO: opt.endISO }),
+    dateLabel: dateLabelFmt.format(start),
+    timeLabel: `${timeLabelFmt.format(start)}–${timeLabelFmt.format(end)}`,
+    remaining: opt.remaining,
+    capacity: opt.capacity,
+    startISO: opt.startISO,
+  };
+}
+
 export async function getImplantationAvailability(
   now: Date,
   segment: Segment,
+  product: ImplantationProduct,
 ): Promise<ImplantationAvailability> {
-  // Implantadores com agenda pausada saem da lista de elegíveis.
   const inactive = await listInactiveSubjects();
   const eligible = SEGMENT_IMPLANTERS[segment].filter((i) => !inactive.has(i));
   if (eligible.length === 0) return { best: [], others: [] };
+
+  const kind = kindForSegment(segment);
+  const capacity = IMPLANTATION_CAPACITY[kind];
+  const durationMin = PRODUCT_DURATION_MIN[product];
+
+  const days = implantationDays(now);
+  if (days.length === 0) return { best: [], others: [] };
+
+  const sessions = await listSessions(eligible, days[0]!, days[days.length - 1]!);
+  // Sessões por implantador (normaliza horário para ISO e deriva o tipo).
+  const byImplanter = new Map<Implanter, ExistingSession[]>();
+  for (const s of sessions) {
+    const list = byImplanter.get(s.implanter) ?? [];
+    list.push({
+      startISO: new Date(s.scheduledStart).toISOString(),
+      endISO: new Date(s.scheduledEnd).toISOString(),
+      product: s.product,
+      kind: s.individual ? 'individual' : 'coletiva',
+      count: s.count,
+    });
+    byImplanter.set(s.implanter, list);
+  }
+
+  const slotsFor = (implanter: Implanter): AvailableImplantationSlot[] => {
+    const existing = byImplanter.get(implanter) ?? [];
+    return days
+      .flatMap((date) => optionsForDay(now, date, product, durationMin, kind, capacity, existing))
+      .map((opt) => toSlot(implanter, product, opt));
+  };
+
   const last = eligible.length > 1 ? await lastImplanterForSegment(segment) : null;
   const preferred = pickPreferred(eligible, last);
 
-  const generated = eligible.map((implanter) => ({
-    implanter,
-    slots: generateImplantationSlots(now, implanter),
-  }));
-
-  const allDates = generated.flatMap((g) => g.slots.map((s) => spDateString(s.start)));
-  const counts =
-    allDates.length === 0
-      ? []
-      : await countsForWindow(
-          eligible,
-          allDates.reduce((a, b) => (a < b ? a : b)),
-          allDates.reduce((a, b) => (a > b ? a : b)),
-        );
-
-  const countMap = new Map<string, number>();
-  for (const c of counts) countMap.set(countKey(c.implanter, c.slotDate, c.slotKind), c.count);
-
-  const toAvailable = (implanter: Implanter, slots: ImplantationSlot[]): AvailableImplantationSlot[] =>
-    slots
-      .map((slot) => ({
-        slot,
-        remaining: slot.capacity - (countMap.get(countKey(implanter, spDateString(slot.start), slot.kind)) ?? 0),
-      }))
-      .filter(({ remaining }) => remaining > 0)
-      .map(({ slot, remaining }) => ({
-        token: encodeImplantationToken({
-          implanter,
-          kind: slot.kind,
-          startISO: slot.start.toISOString(),
-          endISO: slot.end.toISOString(),
-        }),
-        dateLabel: dateLabelFmt.format(slot.start),
-        timeLabel: `${timeLabelFmt.format(slot.start)}–${timeLabelFmt.format(slot.end)}`,
-        kind: slot.kind,
-        kindLabel: IMPLANTATION_SLOT_LABELS[slot.kind],
-        remaining,
-        capacity: slot.capacity,
-        startISO: slot.start.toISOString(),
-      }));
-
-  const preferredSlots = generated.find((g) => g.implanter === preferred)?.slots ?? [];
-  const best = toAvailable(preferred, preferredSlots);
-  const others = generated
-    .filter((g) => g.implanter !== preferred)
-    .flatMap((g) => toAvailable(g.implanter, g.slots));
-
-  return { best, others };
+  return {
+    best: slotsFor(preferred),
+    others: eligible.filter((i) => i !== preferred).flatMap(slotsFor),
+  };
 }

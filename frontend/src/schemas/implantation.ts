@@ -12,6 +12,7 @@ export const implantationFormSchema = z.object({
   clientId: z.string().trim().min(1, 'Informe o ID do cliente.').max(TEXT_MAX),
   phone: z.string().trim().refine(isValidBrPhone, 'Telefone inválido. Informe DDD + número.'),
   segment: z.enum(['enterprise', 'middle', 'small']),
+  product: z.enum(['discador', 'omni', 'ura', 'pabx']),
 });
 
 export type ImplantationFormValues = z.infer<typeof implantationFormSchema>;

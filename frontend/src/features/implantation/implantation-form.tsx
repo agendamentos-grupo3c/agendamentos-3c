@@ -16,7 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { api, type Segment } from '@/lib/api';
+import { api, type ImplantationProduct, type Segment } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { maskBrPhone } from '@/lib/phone';
 import { implantationFormSchema, type ImplantationFormValues } from '@/schemas/implantation';
@@ -30,12 +30,20 @@ const EMPTY: ImplantationFormValues = {
   clientId: '',
   phone: '',
   segment: 'enterprise',
+  product: 'discador',
 };
 
 const SEGMENTS: { value: Segment; label: string }[] = [
   { value: 'enterprise', label: 'Enterprise' },
   { value: 'middle', label: 'Middle' },
   { value: 'small', label: 'Small' },
+];
+
+const PRODUCTS: { value: ImplantationProduct; label: string }[] = [
+  { value: 'discador', label: 'Discador' },
+  { value: 'omni', label: 'Omni' },
+  { value: 'ura', label: 'URA' },
+  { value: 'pabx', label: 'PABX' },
 ];
 
 export function ImplantationForm({
@@ -101,6 +109,38 @@ export function ImplantationForm({
                   <FormControl>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {SEGMENTS.map(({ value, label }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => field.onChange(value)}
+                          aria-pressed={field.value === value}
+                          className={cn(
+                            'rounded-xl border px-3 py-2.5 text-sm font-medium transition-all',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            field.value === value
+                              ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary/40'
+                              : 'border-input text-muted-foreground hover:border-foreground/30 hover:bg-secondary/50 hover:text-foreground',
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="product"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Produto da implantação</FormLabel>
+                  <FormControl>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {PRODUCTS.map(({ value, label }) => (
                         <button
                           key={value}
                           type="button"

@@ -7,22 +7,22 @@ import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
   type Implantation,
   findById,
-  listBySlot,
+  listBySessionStart,
   markAttended,
   markNoShow,
 } from '../repositories/implantationRepository.js';
 
-// Quando TODOS os participantes do slot têm desfecho, manda o resumo da reunião
-// ao n8n (Slack). Best-effort: falha aqui não desfaz o desfecho.
+// Quando TODOS os participantes da sessão têm desfecho, manda o resumo da
+// reunião ao n8n (Slack). Best-effort: falha aqui não desfaz o desfecho.
 async function maybeNotifySlotOutcome(booking: Implantation): Promise<void> {
   try {
-    const all = await listBySlot(booking.implanter, booking.slotDate, booking.slotKind);
+    const all = await listBySessionStart(booking.implanter, booking.scheduledStart);
     if (all.some((b) => b.status === 'agendado')) return;
     const toParticipant = (b: Implantation) => ({ companyName: b.companyName, clientName: b.clientName });
     await notifyImplantationOutcome({
       tipo: 'desfecho',
       implanter: booking.implanter,
-      slotKind: booking.slotKind,
+      product: booking.product ?? '',
       scheduledStartISO: booking.scheduledStart,
       attended: all.filter((b) => b.status === 'compareceu').map(toParticipant),
       noShow: all.filter((b) => b.status === 'no_show').map(toParticipant),

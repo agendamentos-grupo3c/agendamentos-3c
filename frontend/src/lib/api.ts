@@ -96,15 +96,13 @@ export interface OutcomeResponse {
 // === Implantação ===
 
 export type Segment = 'enterprise' | 'middle' | 'small';
-export type ImplantationSlotKind = 'coletiva_manha' | 'individual' | 'coletiva_tarde';
+export type ImplantationProduct = 'discador' | 'omni' | 'ura' | 'pabx';
 export type ImplantationStatus = 'agendado' | 'compareceu' | 'no_show';
 
 export interface ImplantationSlot {
   token: string;
   dateLabel: string;
   timeLabel: string;
-  kind: ImplantationSlotKind;
-  kindLabel: string;
   remaining: number;
   capacity: number;
   startISO: string;
@@ -124,6 +122,7 @@ export interface ImplantationPayload {
   clientId: string;
   phone: string;
   segment: Segment;
+  product: ImplantationProduct;
   slotToken: string;
 }
 
@@ -134,7 +133,7 @@ export interface ImplantationBooking {
   clientEmail: string;
   segment: Segment;
   implanter: Implanter;
-  slotKind: ImplantationSlotKind;
+  product: ImplantationProduct | null;
   scheduledStart: string;
   meetingUrl: string | null;
   status: ImplantationStatus;
@@ -229,8 +228,13 @@ export const api = {
   deleteCard: (id: string): Promise<void> => csrfSend<void>('DELETE', `/cards/${id}`),
 
   // --- Implantação ---
-  getImplantationAvailability: (segment: Segment): Promise<ImplantationAvailability> =>
-    request<ImplantationAvailability>(`/implantation/availability?segment=${segment}`),
+  getImplantationAvailability: (
+    segment: Segment,
+    product: ImplantationProduct,
+  ): Promise<ImplantationAvailability> =>
+    request<ImplantationAvailability>(
+      `/implantation/availability?segment=${segment}&product=${product}`,
+    ),
 
   validateImplantationClient: (clientId: string): Promise<{ found: boolean }> =>
     request<{ found: boolean }>(

@@ -156,43 +156,58 @@ export const SEGMENT_LABELS: Record<Segment, string> = {
   small: 'Small',
 };
 
-// Segmento → implantadores que atendem (ordem = ordem de exibição das colunas).
+// Segmento → implantadores que atendem (ordem = ordem de exibição/rodízio).
 export const SEGMENT_IMPLANTERS: Record<Segment, Implanter[]> = {
   enterprise: ['gabrielle'],
   middle: ['gabrielle', 'bryan'],
-  small: ['bryan', 'wagner'],
+  small: ['wagner'],
 };
 
-export const IMPLANTATION_SLOT_KINDS = ['coletiva_manha', 'individual', 'coletiva_tarde'] as const;
-export type ImplantationSlotKind = (typeof IMPLANTATION_SLOT_KINDS)[number];
+// Produtos da implantação — definem a duração da reunião.
+export const PRODUCTS = ['discador', 'omni', 'ura', 'pabx'] as const;
+export type ImplantationProduct = (typeof PRODUCTS)[number];
 
-export const IMPLANTATION_SLOT_LABELS: Record<ImplantationSlotKind, string> = {
-  coletiva_manha: 'Coletiva (manhã)',
-  individual: 'Individual',
-  coletiva_tarde: 'Coletiva (tarde)',
+export const PRODUCT_LABELS: Record<ImplantationProduct, string> = {
+  discador: 'Discador',
+  omni: 'Omni',
+  ura: 'URA',
+  pabx: 'PABX',
 };
 
-export interface ImplantationSlotTemplate {
-  kind: ImplantationSlotKind;
-  start: string; // HH:MM em America/Sao_Paulo
-  end: string;
-  capacity: number;
-  // Restringe o slot a um implantador específico (individual = só Gabrielle).
-  onlyImplanter?: Implanter;
-}
+// Duração da reunião por produto (minutos).
+export const PRODUCT_DURATION_MIN: Record<ImplantationProduct, number> = {
+  discador: 90,
+  omni: 90,
+  ura: 90,
+  pabx: 15,
+};
 
-// Horários fixos diários. Coletivas têm 8 vagas; individual tem 1 e é exclusiva
-// da Gabrielle. A disponibilidade real (vagas restantes) vem do nosso banco.
-export const IMPLANTATION_SLOTS: ImplantationSlotTemplate[] = [
-  { kind: 'coletiva_manha', start: '09:40', end: '11:10', capacity: 8 },
-  { kind: 'individual', start: '13:20', end: '14:50', capacity: 1, onlyImplanter: 'gabrielle' },
-  { kind: 'coletiva_tarde', start: '15:30', end: '17:10', capacity: 8 },
-];
+// Tipo da reunião: enterprise = individual (1 vaga); demais = coletiva (8 vagas).
+export type ImplantationKind = 'individual' | 'coletiva';
+
+export const IMPLANTATION_CAPACITY: Record<ImplantationKind, number> = {
+  individual: 1,
+  coletiva: 8,
+};
+
+export const kindForSegment = (segment: Segment): ImplantationKind =>
+  segment === 'enterprise' ? 'individual' : 'coletiva';
+
+// hs_activity_type por tipo de reunião.
+export const MEETING_TYPE_BY_KIND: Record<ImplantationKind, string> = {
+  coletiva: 'Implantação Coletiva',
+  individual: 'Implantação',
+};
 
 export const IMPLANTATION = {
   TIMEZONE: 'America/Sao_Paulo',
   // Quantos dias ÚTEIS exibir: hoje + 2 dias úteis.
   WEEKDAYS_AHEAD: 3,
+  // Janelas diárias (HH:MM em America/Sao_Paulo). Fora delas não há reuniões.
+  WINDOWS: [
+    ['09:30', '11:00'],
+    ['13:30', '17:00'],
+  ] as ReadonlyArray<readonly [string, string]>,
 } as const;
 
 // ===========================================================================
@@ -210,11 +225,4 @@ export const HUBSPOT = {
     '1008450862': '1008450864', // [3C] CS - Teste
     '1008378259': '1008452444', // [3C] CS - Fechado
   } as Record<string, string>,
-  // Tipo da reunião (hs_activity_type) por tipo de slot. Coletivas usam
-  // "Implantação Coletiva"; individual usa "Implantação" (ajustar se necessário).
-  MEETING_TYPE_BY_SLOT: {
-    coletiva_manha: 'Implantação Coletiva',
-    coletiva_tarde: 'Implantação Coletiva',
-    individual: 'Implantação',
-  } as Record<ImplantationSlotKind, string>,
 } as const;
