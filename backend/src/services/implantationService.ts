@@ -10,7 +10,7 @@ import {
   findOwnerIdByEmail,
   findWelcomeDeal,
   moveDealToStage,
-  setMeetingType,
+  patchMeeting,
 } from '../integrations/hubspot.js';
 import { notifyImplantationScheduled } from '../integrations/n8n.js';
 import { spDateString } from '../lib/implantationPolicy.js';
@@ -124,7 +124,9 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         logger.warn({ implantationId: booking.id }, 'hubspot welcome deal not found for client');
         pending.push('hubspot');
       } else {
-        const ownerId = await findOwnerIdByEmail(booking.sellerEmail);
+        // Responsável = o IMPLANTADOR (a reunião é da agenda dele). O e-mail do
+        // implantador é o mesmo do calendário/owner no HubSpot.
+        const ownerId = await findOwnerIdByEmail(getImplanterCalendarId(booking.implanter));
         const { meetingId } = await createMeeting({
           title: `Implantação — ${booking.companyName}`,
           startISO: booking.scheduledStart,
@@ -142,14 +144,17 @@ async function runDispatches(booking: Implantation): Promise<ImplantationDispatc
         const implStage = HUBSPOT.WELCOME_TO_IMPLANTATION_STAGE[deal.welcomeStageId];
         if (implStage) await moveDealToStage(deal.dealId, implStage);
 
-        // Tipo da reunião (ex.: "Implantação Coletiva"). Best-effort isolado: um
-        // valor inválido não pode bloquear o move de etapa nem o agendamento.
+        // Tipo da reunião + link do Meet na "localização". Best-effort isolado:
+        // não pode bloquear o move de etapa nem o agendamento.
+        const props: Record<string, string> = {};
         const meetingType = HUBSPOT.MEETING_TYPE_BY_SLOT[booking.slotKind];
-        if (meetingType) {
+        if (meetingType) props.hs_activity_type = meetingType;
+        if (booking.meetingUrl) props.hs_meeting_location = booking.meetingUrl;
+        if (Object.keys(props).length > 0) {
           try {
-            await setMeetingType(meetingId, meetingType);
+            await patchMeeting(meetingId, props);
           } catch (err) {
-            logger.warn({ err, implantationId: booking.id }, 'hubspot meeting type pending');
+            logger.warn({ err, implantationId: booking.id }, 'hubspot meeting patch pending');
           }
         }
       }
