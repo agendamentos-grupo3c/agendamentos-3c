@@ -40,4 +40,21 @@ services:
         sync: false
       - key: CALENDAR_GUILHERME_ID
         sync: false
-      # Slack/WhatsApp/ClickUp são tratados pelo fluxo n8n da 3C (delegado).
+      # Implantadores (donos das agendas de treinamento).
+      - key: CALENDAR_GABRIELLE_ID
+        sync: false
+      - key: CALENDAR_BRYAN_ID
+        sync: false
+      - key: CALENDAR_WAGNER_ID
+        sync: false
+      # HubSpot (implantação): Private App token.
+      - key: HUBSPOT_TOKEN
+        sync: false
+      # Webhooks n8n (Slack/WhatsApp/ClickUp/ClickSign tratados no n8n da 3C).
+      - key: N8N_IMPLANTACAO_WEBHOOK
+        sync: false
+      - key: N8N_INTEGRACAO_WEBHOOK
+        sync: false
+      # ClickSign + boleto do orçamento de integração (fluxo n8n de outro setor).
+      - key: N8N_CLICKSIGN_WEBHOOK
+        sync: false

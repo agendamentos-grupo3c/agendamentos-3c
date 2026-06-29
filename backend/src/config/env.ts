@@ -51,6 +51,12 @@ const schema = z.object({
   // Webhook do n8n da implantação (legado): a implantação migra para o HubSpot;
   // mantido apenas como fallback durante a transição.
   N8N_IMPLANTACAO_WEBHOOK: z.string().url().optional(),
+  // Webhook do n8n da integração (kickoff). Hoje o n8n é acionado pelo webhook do
+  // ClickUp; esta var separa o endpoint de integração do de implantação.
+  N8N_INTEGRACAO_WEBHOOK: z.string().url().optional(),
+  // Webhook do n8n que gera a proposta no ClickSign + boleto a partir do
+  // orçamento de integração (e move o ClickUp/Slack do lado do n8n).
+  N8N_CLICKSIGN_WEBHOOK: z.string().url().optional(),
   // HubSpot (implantação): Private App token usado para criar a meeting e
   // atualizar suas observações. Exigido quando a Fase A do HubSpot entrar.
   HUBSPOT_TOKEN: z.string().optional(),

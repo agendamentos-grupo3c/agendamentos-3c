@@ -5,6 +5,7 @@ async function postWebhook(
   url: string | undefined,
   payload: unknown,
   missingMessage: string,
+  extraHeaders?: Record<string, string>,
 ): Promise<void> {
   if (!url) {
     throw new AppError({
@@ -17,7 +18,7 @@ async function postWebhook(
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...extraHeaders },
     body: JSON.stringify(payload),
   });
 
@@ -98,4 +99,16 @@ export async function notifyImplantationMeetingLink(
   payload: ImplantationLinkNotification,
 ): Promise<void> {
   await postWebhook(env.N8N_IMPLANTACAO_WEBHOOK, payload, 'N8N_IMPLANTACAO_WEBHOOK ausente.');
+}
+
+// Orçamento de integração → n8n que gera a proposta no ClickSign + boleto e, do
+// lado do n8n, move o ClickUp para "Orçamento enviado" e avisa no Slack.
+// A idempotencyKey vai também como header HTTP para o n8n deduplicar retries.
+export async function notifyOrcamentoProposta(
+  payload: Record<string, unknown>,
+  idempotencyKey: string,
+): Promise<void> {
+  await postWebhook(env.N8N_CLICKSIGN_WEBHOOK, payload, 'N8N_CLICKSIGN_WEBHOOK ausente.', {
+    'Idempotency-Key': idempotencyKey,
+  });
 }

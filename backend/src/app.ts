@@ -16,6 +16,7 @@ import { availabilityRoutes } from './routes/availability.js';
 import { cardRoutes } from './routes/cards.js';
 import { healthRoutes } from './routes/health.js';
 import { implantationRoutes } from './routes/implantation.js';
+import { orcamentoRoutes } from './routes/orcamento.js';
 import { submitRoutes } from './routes/submit.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -85,6 +86,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(submitRoutes);
   await app.register(cardRoutes);
   await app.register(implantationRoutes);
+  await app.register(orcamentoRoutes);
   await app.register(agendaRoutes);
 
   return app;

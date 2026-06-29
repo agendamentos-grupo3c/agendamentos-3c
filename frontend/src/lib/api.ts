@@ -146,6 +146,40 @@ export interface ImplantationSubmitResponse {
   pending: string[];
 }
 
+// === Orçamento de integração ===
+
+export interface OrcamentoEscopoPayload {
+  pilares: { mailing: boolean; qualif: boolean; screenpop: boolean; click2call: boolean };
+  funis: number;
+  qualifs: number;
+  sdrs: number;
+  campos: number;
+  url: boolean;
+}
+
+export interface OrcamentoPayload {
+  contratanteNome: string;
+  contratanteEmail: string;
+  contratanteTelefone: string;
+  empresa: string;
+  cnpj: string;
+  idHubspot?: string;
+  idNegocio?: string;
+  clienteRef?: string;
+  crm: string;
+  escopo: OrcamentoEscopoPayload;
+  formaPagamento: 'avista' | 'parcelado';
+  parcelas?: number;
+  descricao?: string;
+  observacoes?: string;
+}
+
+export interface OrcamentoResponse {
+  total: number;
+  valorFormatado: string;
+  validadeISO: string;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -261,6 +295,9 @@ export const api = {
 
   implantationMeetingLink: (id: string, link: string): Promise<{ booking: ImplantationBooking }> =>
     csrfPost<{ booking: ImplantationBooking }>(`/implantation/${id}/meeting-link`, { link }),
+
+  enviarOrcamento: (payload: OrcamentoPayload, idempotencyKey: string): Promise<OrcamentoResponse> =>
+    csrfPost<OrcamentoResponse>('/orcamento', payload, { 'Idempotency-Key': idempotencyKey }),
 
   // --- Agenda (pausar/reativar) ---
   getAgendaStatus: (): Promise<AgendaState> => request<AgendaState>('/agenda/status'),

@@ -108,6 +108,35 @@ A implantação **não usa ClickUp** — só Slack e e-mail, via n8n. O backend 
 três eventos para `N8N_IMPLANTACAO_WEBHOOK` (`tipo`: `agendada`, `desfecho`,
 `link`), tratados pelo fluxo n8n de implantação.
 
+## Orçamento de integração (ClickSign)
+
+Fluxo do **vendedor** quando o cliente quer uma integração. Entrada principal do
+dashboard (o agendamento de reuniões de integradores saiu da entrada e virou um
+ramo deste fluxo).
+
+1. **Triagem** — antes de orçar, define o cenário:
+   - cliente só quer **tirar dúvidas** → agenda reunião com a integração (sem custo);
+   - **CRM fora da lista** com template → agenda reunião de **viabilidade**;
+   - CRM na lista + quer fechar → segue para a **calculadora**.
+2. **Calculadora** — precifica a integração (pilares + dimensionamento). O preço é
+   **sempre recomputado no backend** (`lib/orcamentoPolicy.ts`); o total do front é
+   apenas informativo.
+3. **Dados da proposta (contratante)** — nome/e-mail/telefone/empresa/CNPJ, IDs
+   HubSpot/negócio (opcionais), forma de pagamento e parcelas.
+4. **Envio** — `POST /orcamento` (auth + CSRF + `Idempotency-Key` + rate-limit)
+   monta o payload e dispara o webhook **`N8N_CLICKSIGN_WEBHOOK`** (a chave também
+   vai como header HTTP). Cada envio é auditado (`orcamento.sent`).
+   - **Idempotência server-side:** a tabela `orcamento_envios` (índice único na
+     `idempotency_key`) grava o envio e **bloqueia o reenvio no nosso lado** — um
+     replay com a mesma chave retorna o resultado anterior **sem** chamar o n8n de
+     novo, evitando proposta/boleto duplicados.
+
+**Delegado ao n8n (outro setor):** a geração da proposta no **ClickSign + boleto**,
+e a mudança do **ClickUp → "Orçamento enviado"** + aviso no **Slack** acontecem do
+lado do n8n a partir do webhook. O enriquecimento de CNPJ (Receita Federal) e do
+deal no HubSpot também fica no n8n. Sem `N8N_CLICKSIGN_WEBHOOK` configurada, o envio
+retorna erro tratado (nada externo dispara).
+
 ## Roadmap (resumo)
 
 1. **Estrutura base** ✅ (este passo)

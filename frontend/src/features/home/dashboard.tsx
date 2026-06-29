@@ -1,18 +1,20 @@
 'use client';
 
-import { ArrowRight, ListChecks, PlugZap, Rocket } from 'lucide-react';
+import { ArrowRight, Calculator, ListChecks, Rocket } from 'lucide-react';
 import Link from 'next/link';
 
 import { useCurrentUser } from '@/features/auth/auth-guard';
 import { cn } from '@/lib/utils';
 
 // Um card por formulário (escalável: novos tipos = novos cards aqui).
+// Obs.: o fluxo "Integrações / Automações" saiu da entrada principal (backlog);
+// a reunião com a integração agora é acionada dentro do fluxo de orçamento.
 const ACTIONS = [
   {
-    href: '/agendar/integracoes',
-    title: 'Integrações / Automações',
-    description: 'Agende o kickoff da integração ou automação do cliente.',
-    icon: PlugZap,
+    href: '/orcamento',
+    title: 'Orçamento de integração',
+    description: 'Monte o orçamento da integração do cliente e envie a proposta.',
+    icon: Calculator,
     accent: true,
   },
   {
