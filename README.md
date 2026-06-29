@@ -59,6 +59,55 @@ npm run dev
 - **Banco (Neon):** crie o projeto, copie as connection strings (pooled e direta) e rode as migrations.
 - Antes de publicar, siga o [checklist de segurança](./SECURITY.md).
 
+## Implantação — confirmação de agendamento e link da reunião
+
+Regras específicas do fluxo de **implantação** (segmento + produto + rodízio de
+implantadores), além do que está no `CLAUDE.md`:
+
+### Modal de confirmação (antes de agendar)
+
+Ao selecionar um horário, o botão **Agendar** abre um **modal de confirmação**
+que destaca a escolha do vendedor antes de efetivar:
+
+> *"{primeiro nome do vendedor}, você está agendando a implantação de **{produto}**
+> para a empresa **{empresa}**."* — com a data e o horário em destaque.
+
+Só ao **Confirmar** o horário é reservado e o cliente notificado. "Revisar"
+fecha o modal sem agendar. O nome vem da sessão (`useCurrentUser`); produto,
+empresa, dia e hora vêm do formulário e do slot selecionado.
+
+### Link da reunião (pós-reunião)
+
+Depois que o implantador registra o desfecho de **toda a sessão**
+(`compareceu` / `no-show` → ClickUp e Slack via n8n), surge um campo para ele
+**colar manualmente o link da reunião** quando ela for gerada. Ao salvar:
+
+1. **HubSpot** — o link é anexado à **reunião já criada para cada lead** que
+   **compareceu**. Ele entra no corpo da reunião **abaixo da observação, com duas
+   linhas em branco** entre os dois (`composeMeetingBody`), para que a observação
+   e o link nunca quebrem a visualização da reunião.
+2. **n8n** — dispara o e-mail "link da reunião gerado" **apenas aos leads que
+   compareceram** (payload `tipo: 'link'` no `N8N_IMPLANTACAO_WEBHOOK`).
+
+Garantias de robustez:
+
+- **Permissões:** o endpoint `POST /implantation/:id/meeting-link` exige papel
+  **implantador** (`requireImplanter`) e valida que o ator é o **dono da agenda**
+  da sessão (vendedor → 403; implantador de outra coluna → 403).
+- **Coerência de estado:** o link só é aceito quando a sessão **não tem mais
+  participantes pendentes** e **ao menos um compareceu** (senão 409).
+- **Idempotência:** o mesmo link já gravado e notificado não redispara o e-mail;
+  `meeting_link_notified_at` só é marcado após o sucesso no n8n, então um retry
+  reprocessa o que faltou sem duplicar.
+- **Campo separado:** `meeting_link` é distinto do `meeting_url` (Google Meet do
+  kickoff) — o link manual não sobrescreve o link original.
+
+### Notificações (n8n)
+
+A implantação **não usa ClickUp** — só Slack e e-mail, via n8n. O backend dispara
+três eventos para `N8N_IMPLANTACAO_WEBHOOK` (`tipo`: `agendada`, `desfecho`,
+`link`), tratados pelo fluxo n8n de implantação.
+
 ## Roadmap (resumo)
 
 1. **Estrutura base** ✅ (este passo)

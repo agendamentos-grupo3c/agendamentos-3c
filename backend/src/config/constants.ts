@@ -108,6 +108,8 @@ export const GOOGLE = {
 export const FORM = {
   TEXT_MAX: 200,
   SUMMARY_MAX: 5000,
+  // Link da reunião colado manualmente no pós-reunião (URL).
+  MEETING_LINK_MAX: 2048,
 } as const;
 
 // Agendamento (seção 7.4). Slots fixos por colaborador; Alana de manhã,

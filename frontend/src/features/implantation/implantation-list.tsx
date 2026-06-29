@@ -4,6 +4,7 @@ import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useCurrentUser } from '@/features/auth/auth-guard';
@@ -106,6 +107,76 @@ function ChoiceButton({
   );
 }
 
+// Link da reunião (pós-reunião): aparece só depois que toda a sessão tem
+// desfecho e alguém compareceu. Ao salvar, o backend anexa o link à reunião do
+// HubSpot e dispara o e-mail (n8n) a quem compareceu.
+function MeetingLinkSection({
+  attendedId,
+  current,
+  onChanged,
+}: {
+  attendedId: string;
+  current: string | null;
+  onChanged: () => void;
+}) {
+  const [link, setLink] = React.useState(current ?? '');
+  const [savedLink, setSavedLink] = React.useState<string | null>(current);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const trimmed = link.trim();
+  const looksValid = /^https?:\/\/\S+$/i.test(trimmed);
+  const dirty = trimmed !== (savedLink ?? '');
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.implantationMeetingLink(attendedId, trimmed);
+      setSavedLink(res.booking.meetingLink);
+      onChanged();
+    } catch {
+      setError('Não foi possível salvar o link. Verifique a URL e tente novamente.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-xl border p-3">
+      <Label htmlFor={`link-${attendedId}`}>Link da reunião</Label>
+      <p className="text-xs text-muted-foreground">
+        Cole o link quando a reunião for gerada. Ele é anexado à reunião no HubSpot e enviado por
+        e-mail a quem compareceu.
+      </p>
+      {savedLink && (
+        <p className="text-sm">
+          <span className="text-muted-foreground">Atual: </span>
+          <a
+            className="break-all text-primary underline underline-offset-4"
+            href={savedLink}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {savedLink}
+          </a>
+        </p>
+      )}
+      <Input
+        id={`link-${attendedId}`}
+        inputMode="url"
+        placeholder="https://meet.google.com/…"
+        value={link}
+        onChange={(e) => setLink(e.target.value)}
+      />
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button size="sm" disabled={busy || !dirty || !looksValid} onClick={save}>
+        {busy ? 'Enviando…' : savedLink ? 'Atualizar link' : 'Salvar e enviar link'}
+      </Button>
+    </div>
+  );
+}
+
 function SlotCard({ slot, canEdit, onChanged }: { slot: Slot; canEdit: boolean; onChanged: () => void }) {
   const [decisions, setDecisions] = React.useState<Record<string, Decision>>({});
   const [observation, setObservation] = React.useState('');
@@ -116,7 +187,9 @@ function SlotCard({ slot, canEdit, onChanged }: { slot: Slot; canEdit: boolean; 
   const isColetiva = slot.bookings.some((b) => b.segment !== 'enterprise');
   const productLabel = slot.product ? PRODUCT_LABELS[slot.product] : 'Implantação';
   const pending = slot.bookings.filter((b) => b.status === 'agendado');
-  const attendedNote = slot.bookings.find((b) => b.status === 'compareceu')?.attendanceNotes;
+  const attended = slot.bookings.filter((b) => b.status === 'compareceu');
+  const firstAttended = attended[0];
+  const attendedNote = firstAttended?.attendanceNotes;
   const allDecided = pending.length > 0 && pending.every((b) => decisions[b.id]);
   const anyAttended = pending.some((b) => decisions[b.id] === 'compareceu');
 
@@ -211,6 +284,14 @@ function SlotCard({ slot, canEdit, onChanged }: { slot: Slot; canEdit: boolean; 
               </p>
             )}
           </div>
+        )}
+
+        {canEdit && pending.length === 0 && firstAttended && (
+          <MeetingLinkSection
+            attendedId={firstAttended.id}
+            current={attended.find((b) => b.meetingLink)?.meetingLink ?? null}
+            onChanged={onChanged}
+          />
         )}
       </CardContent>
     </Card>

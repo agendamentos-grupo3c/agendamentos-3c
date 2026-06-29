@@ -138,6 +138,7 @@ export interface ImplantationBooking {
   meetingUrl: string | null;
   status: ImplantationStatus;
   attendanceNotes: string | null;
+  meetingLink: string | null;
 }
 
 export interface ImplantationSubmitResponse {
@@ -257,6 +258,9 @@ export const api = {
 
   implantationNoShow: (id: string): Promise<{ booking: ImplantationBooking }> =>
     csrfPost<{ booking: ImplantationBooking }>(`/implantation/${id}/no-show`),
+
+  implantationMeetingLink: (id: string, link: string): Promise<{ booking: ImplantationBooking }> =>
+    csrfPost<{ booking: ImplantationBooking }>(`/implantation/${id}/meeting-link`, { link }),
 
   // --- Agenda (pausar/reativar) ---
   getAgendaStatus: (): Promise<AgendaState> => request<AgendaState>('/agenda/status'),

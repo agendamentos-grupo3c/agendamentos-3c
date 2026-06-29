@@ -13,9 +13,17 @@ import {
   listByImplanter,
   listBySeller,
 } from '../repositories/implantationRepository.js';
-import { implantationAttendedSchema, implantationSubmitSchema } from '../schemas/implantation.js';
+import {
+  implantationAttendedSchema,
+  implantationMeetingLinkSchema,
+  implantationSubmitSchema,
+} from '../schemas/implantation.js';
 import { getImplantationAvailability } from '../services/implantationAvailabilityService.js';
-import { attendImplantation, noShowImplantation } from '../services/implantationOutcomeService.js';
+import {
+  attendImplantation,
+  noShowImplantation,
+  setImplantationMeetingLink,
+} from '../services/implantationOutcomeService.js';
 import { bookImplantation } from '../services/implantationService.js';
 
 const paramsSchema = z.object({ id: z.string().uuid() });
@@ -35,6 +43,7 @@ function toPublic(b: Implantation) {
     meetingUrl: b.meetingUrl,
     status: b.status,
     attendanceNotes: b.attendanceNotes,
+    meetingLink: b.meetingLink,
   };
 }
 
@@ -155,6 +164,22 @@ export async function implantationRoutes(app: FastifyInstance): Promise<void> {
     async (req) => {
       const id = parseId(req.params);
       const result = await noShowImplantation(id, req.user!.email);
+      return { booking: toPublic(result.booking) };
+    },
+  );
+
+  // Link da reunião (pós-reunião): grava no HubSpot e dispara e-mail (n8n) a quem
+  // compareceu. Somente o implantador dono (trava no service).
+  app.post(
+    '/implantation/:id/meeting-link',
+    { preHandler: [requireAuth, app.csrfProtection, requireImplanter] },
+    async (req) => {
+      const id = parseId(req.params);
+      const parsed = implantationMeetingLinkSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        throw new AppError({ code: 'BAD_REQUEST', statusCode: 400, publicMessage: 'Link inválido.' });
+      }
+      const result = await setImplantationMeetingLink(id, req.user!.email, parsed.data.link);
       return { booking: toPublic(result.booking) };
     },
   );

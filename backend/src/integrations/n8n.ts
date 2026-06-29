@@ -65,6 +65,23 @@ export interface ImplantationOutcomeNotification {
   observation: string | null;
 }
 
+export interface ImplantationLinkRecipient {
+  companyName: string;
+  clientName: string;
+  clientEmail: string;
+}
+
+// Disparado quando o implantador cola o link da reunião no pós-reunião: o n8n
+// envia o e-mail "link gerado" a cada lead que compareceu.
+export interface ImplantationLinkNotification {
+  tipo: 'link';
+  implanter: string;
+  product: string;
+  scheduledStartISO: string;
+  meetingLink: string;
+  recipients: ImplantationLinkRecipient[];
+}
+
 export async function notifyImplantationScheduled(
   payload: ImplantationScheduledNotification,
 ): Promise<void> {
@@ -73,6 +90,12 @@ export async function notifyImplantationScheduled(
 
 export async function notifyImplantationOutcome(
   payload: ImplantationOutcomeNotification,
+): Promise<void> {
+  await postWebhook(env.N8N_IMPLANTACAO_WEBHOOK, payload, 'N8N_IMPLANTACAO_WEBHOOK ausente.');
+}
+
+export async function notifyImplantationMeetingLink(
+  payload: ImplantationLinkNotification,
 ): Promise<void> {
   await postWebhook(env.N8N_IMPLANTACAO_WEBHOOK, payload, 'N8N_IMPLANTACAO_WEBHOOK ausente.');
 }

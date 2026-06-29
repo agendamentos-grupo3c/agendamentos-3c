@@ -1,10 +1,12 @@
 'use client';
 
-import { ChevronDown } from 'lucide-react';
+import { CalendarClock, ChevronDown } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Modal } from '@/components/ui/modal';
+import { useCurrentUser } from '@/features/auth/auth-guard';
 import {
   api,
   type ImplantationAvailability,
@@ -13,6 +15,13 @@ import {
   type Segment,
 } from '@/lib/api';
 import { cn } from '@/lib/utils';
+
+const PRODUCT_LABELS: Record<ImplantationProduct, string> = {
+  discador: 'Discador',
+  omni: 'Omni',
+  ura: 'URA',
+  pabx: 'PABX',
+};
 
 function groupByDate(slots: ImplantationSlot[]): [string, ImplantationSlot[]][] {
   const map = new Map<string, ImplantationSlot[]>();
@@ -80,21 +89,26 @@ function SlotGrid({
 export function ImplantationAgenda({
   segment,
   product,
+  companyName,
   notice,
   onBack,
   onConfirm,
 }: {
   segment: Segment;
   product: ImplantationProduct;
+  companyName: string;
   notice?: string;
   onBack: () => void;
   onConfirm: (slot: ImplantationSlot) => void;
 }) {
+  const user = useCurrentUser();
+  const firstName = user.name.split(' ')[0] || 'colaborador(a)';
   const [data, setData] = React.useState<ImplantationAvailability | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
   const [selected, setSelected] = React.useState<ImplantationSlot | null>(null);
   const [showOthers, setShowOthers] = React.useState(false);
+  const [confirming, setConfirming] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
@@ -182,11 +196,53 @@ export function ImplantationAgenda({
           <Button variant="ghost" onClick={onBack}>
             Voltar
           </Button>
-          <Button disabled={!selected} onClick={() => selected && onConfirm(selected)}>
+          <Button disabled={!selected} onClick={() => selected && setConfirming(true)}>
             Agendar
           </Button>
         </div>
       </div>
+
+      <Modal
+        open={confirming && selected !== null}
+        onClose={() => setConfirming(false)}
+        title="Confirmar agendamento"
+      >
+        {selected && (
+          <div className="space-y-4">
+            <p className="text-sm leading-relaxed">
+              <span className="font-semibold">{firstName}</span>, você está agendando a implantação de{' '}
+              <span className="font-semibold">{PRODUCT_LABELS[product]}</span> para a empresa{' '}
+              <span className="font-semibold">{companyName}</span>.
+            </p>
+
+            <div className="flex items-center gap-2 rounded-xl border bg-secondary/40 px-3 py-2.5 text-sm">
+              <CalendarClock className="size-4 shrink-0 text-primary" />
+              <span className="font-medium">
+                {selected.dateLabel} · {selected.timeLabel}
+              </span>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Confira os dados acima: ao confirmar, o horário é reservado e o cliente é notificado
+              automaticamente. Para mudar algo, volte e ajuste antes de confirmar.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={() => setConfirming(false)}>
+                Revisar
+              </Button>
+              <Button
+                onClick={() => {
+                  setConfirming(false);
+                  onConfirm(selected);
+                }}
+              >
+                Confirmar agendamento
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

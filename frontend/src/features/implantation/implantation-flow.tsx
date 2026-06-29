@@ -65,6 +65,7 @@ export function ImplantationFlow() {
       <ImplantationAgenda
         segment={formData.segment}
         product={formData.product}
+        companyName={formData.companyName}
         notice={notice}
         onBack={() => setStep('form')}
         onConfirm={handleConfirm}

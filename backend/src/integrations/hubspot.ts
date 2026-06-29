@@ -106,6 +106,16 @@ export async function findWelcomeDeal(id3c: string): Promise<WelcomeDeal | null>
   return null;
 }
 
+// Monta o corpo da reunião juntando a observação ao link, com DUAS linhas em
+// branco entre eles. Assim, quando o link chega depois da observação, ele não
+// quebra a visualização da reunião no HubSpot.
+export function composeMeetingBody(notes: string | null, link: string | null): string {
+  const obs = (notes ?? '').trim();
+  const linkLine = link ? `🔗 Link da reunião: ${link}` : '';
+  if (obs && linkLine) return `${obs}\n\n\n${linkLine}`;
+  return obs || linkLine;
+}
+
 // Atualiza a observação (corpo) da reunião — usado no pós-reunião. A mesma
 // observação é gravada na meeting de cada participante que compareceu.
 export async function updateMeetingNotes(meetingId: string, body: string): Promise<void> {

@@ -23,5 +23,11 @@ export const implantationAttendedSchema = z.object({
   notes: z.string().trim().max(FORM.SUMMARY_MAX).optional(),
 });
 
+// Link da reunião colado manualmente pelo implantador no pós-reunião.
+export const implantationMeetingLinkSchema = z.object({
+  link: z.string().trim().url('Link inválido.').max(FORM.MEETING_LINK_MAX),
+});
+
 export type ImplantationSubmitInput = z.infer<typeof implantationSubmitSchema>;
 export type ImplantationAttendedInput = z.infer<typeof implantationAttendedSchema>;
+export type ImplantationMeetingLinkInput = z.infer<typeof implantationMeetingLinkSchema>;

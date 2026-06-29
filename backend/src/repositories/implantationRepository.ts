@@ -20,6 +20,8 @@ export interface Implantation {
   meetingUrl: string | null;
   status: ImplantationStatus;
   attendanceNotes: string | null;
+  meetingLink: string | null;
+  meetingLinkNotifiedAt: string | null;
   sellerEmail: string;
   sellerName: string | null;
   idempotencyKey: string | null;
@@ -44,6 +46,8 @@ const COLUMNS = `
   meeting_url AS "meetingUrl",
   status,
   attendance_notes AS "attendanceNotes",
+  meeting_link AS "meetingLink",
+  meeting_link_notified_at AS "meetingLinkNotifiedAt",
   seller_email AS "sellerEmail",
   seller_name AS "sellerName",
   idempotency_key AS "idempotencyKey",
@@ -294,4 +298,32 @@ export async function markNoShow(id: string): Promise<Implantation | null> {
     [id],
   );
   return rows[0] ?? null;
+}
+
+// Grava o link da reunião (pós-reunião) APENAS nos participantes que
+// compareceram da sessão; o disparo (HubSpot/n8n) trata-se à parte.
+export async function setSessionMeetingLink(
+  implanter: Implanter,
+  scheduledStart: string,
+  link: string,
+): Promise<Implantation[]> {
+  const { rows } = await query<Implantation>(
+    `UPDATE implantations SET meeting_link = $3
+       WHERE implanter = $1 AND scheduled_start = $2 AND status = 'compareceu'
+       RETURNING ${COLUMNS}`,
+    [implanter, scheduledStart, link],
+  );
+  return rows;
+}
+
+// Marca o envio do link concluído (idempotência do disparo de e-mail/HubSpot).
+export async function markSessionMeetingLinkNotified(
+  implanter: Implanter,
+  scheduledStart: string,
+): Promise<void> {
+  await query(
+    `UPDATE implantations SET meeting_link_notified_at = now()
+       WHERE implanter = $1 AND scheduled_start = $2 AND status = 'compareceu'`,
+    [implanter, scheduledStart],
+  );
 }
