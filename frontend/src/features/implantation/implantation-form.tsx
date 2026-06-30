@@ -107,7 +107,7 @@ export function ImplantationForm({
                 <FormItem>
                   <FormLabel>Segmento do cliente</FormLabel>
                   <FormControl>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="grid grid-cols-3 gap-2">
                       {SEGMENTS.map(({ value, label }) => (
                         <button
                           key={value}
