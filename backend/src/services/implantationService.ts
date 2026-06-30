@@ -12,6 +12,7 @@ import { AppError } from '../errors/AppError.js';
 import {
   addGuestToTraining,
   createEvent,
+  getBusyIntervals,
   getImplanterCalendarId,
 } from '../integrations/googleCalendar.js';
 import {
@@ -34,6 +35,7 @@ import {
   countForSession,
   findByIdempotencyKey,
   insertWithCapacity,
+  listBySessionStart,
   markN8nNotified,
   setEvent,
   setHubspotMeetingId,
@@ -232,6 +234,39 @@ export async function bookImplantation(input: BookImplantationInput): Promise<Bo
   }
 
   const capacity = IMPLANTATION_CAPACITY[kindForSegment(segment)];
+
+  // Trava anti-corrida com a agenda real: se NÃO for entrar numa sessão nossa do
+  // mesmo produto com vaga, o horário precisa estar livre no Google Calendar do
+  // implantador (pega compromissos externos criados entre ver e enviar).
+  const sessionRows = await listBySessionStart(slot.implanter, slot.startISO);
+  const joinable =
+    sessionRows.length > 0 && sessionRows[0]!.product === product && sessionRows.length < capacity;
+  if (!joinable) {
+    let busyCount: number;
+    try {
+      const busy = await getBusyIntervals(
+        getImplanterCalendarId(slot.implanter),
+        new Date(slot.startISO),
+        new Date(slot.endISO),
+      );
+      busyCount = busy.length;
+    } catch {
+      // freeBusy falhou → fail-closed: não abrir sessão sem confirmar a agenda.
+      throw new AppError({
+        code: 'IMPLANTER_CALENDAR_UNAVAILABLE',
+        statusCode: 503,
+        publicMessage: 'Não foi possível confirmar a agenda do implantador agora. Tente novamente.',
+      });
+    }
+    if (busyCount > 0) {
+      throw new AppError({
+        code: 'IMPLANTER_BUSY',
+        statusCode: 409,
+        publicMessage: 'Esse horário ficou indisponível na agenda do implantador. Escolha outro.',
+      });
+    }
+  }
+
   let booking: Implantation | null;
   try {
     booking = await insertWithCapacity(

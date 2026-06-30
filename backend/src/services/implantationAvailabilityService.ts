@@ -8,12 +8,14 @@ import {
   type ImplantationProduct,
   type Segment,
 } from '../config/constants.js';
+import { getBusyIntervals, getImplanterCalendarId, type BusyInterval } from '../integrations/googleCalendar.js';
 import {
   implantationDays,
   optionsForDay,
   type ExistingSession,
   type SlotOption,
 } from '../lib/implantationPolicy.js';
+import { logger } from '../lib/logger.js';
 import { encodeImplantationToken } from '../lib/slotToken.js';
 import { listInactiveSubjects } from '../repositories/agendaRepository.js';
 import { lastImplanterForSegment, listSessions } from '../repositories/implantationRepository.js';
@@ -83,7 +85,24 @@ export async function getImplantationAvailability(
   const days = implantationDays(now);
   if (days.length === 0) return { best: [], others: [] };
 
-  const sessions = await listSessions(eligible, days[0]!, days[days.length - 1]!);
+  // Agenda real de cada implantador (freeBusy). Se a leitura falhar, o implantador
+  // é EXCLUÍDO (fail-closed): melhor não oferecer horários do que oferecer ocupado.
+  const rangeStart = new Date(`${days[0]!}T00:00:00-03:00`);
+  const rangeEnd = new Date(`${days[days.length - 1]!}T23:59:59-03:00`);
+  const busyByImplanter = new Map<Implanter, BusyInterval[]>();
+  await Promise.all(
+    eligible.map(async (imp) => {
+      try {
+        busyByImplanter.set(imp, await getBusyIntervals(getImplanterCalendarId(imp), rangeStart, rangeEnd));
+      } catch (err) {
+        logger.warn({ err, implanter: imp }, 'implantation availability: freeBusy indisponível — implantador omitido');
+      }
+    }),
+  );
+  const readable = eligible.filter((i) => busyByImplanter.has(i));
+  if (readable.length === 0) return { best: [], others: [] };
+
+  const sessions = await listSessions(readable, days[0]!, days[days.length - 1]!);
   // Sessões por implantador (normaliza horário para ISO e deriva o tipo).
   const byImplanter = new Map<Implanter, ExistingSession[]>();
   for (const s of sessions) {
@@ -100,16 +119,17 @@ export async function getImplantationAvailability(
 
   const slotsFor = (implanter: Implanter): AvailableImplantationSlot[] => {
     const existing = byImplanter.get(implanter) ?? [];
+    const busy = busyByImplanter.get(implanter) ?? [];
     return days
-      .flatMap((date) => optionsForDay(now, date, product, durationMin, kind, capacity, existing))
+      .flatMap((date) => optionsForDay(now, date, product, durationMin, kind, capacity, existing, busy))
       .map((opt) => toSlot(implanter, product, opt));
   };
 
-  const last = eligible.length > 1 ? await lastImplanterForSegment(segment) : null;
-  const preferred = pickPreferred(eligible, last);
+  const last = readable.length > 1 ? await lastImplanterForSegment(segment) : null;
+  const preferred = pickPreferred(readable, last);
 
   return {
     best: slotsFor(preferred),
-    others: eligible.filter((i) => i !== preferred).flatMap(slotsFor),
+    others: readable.filter((i) => i !== preferred).flatMap(slotsFor),
   };
 }

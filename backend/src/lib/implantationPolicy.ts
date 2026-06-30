@@ -43,6 +43,12 @@ export interface ExistingSession {
   count: number;
 }
 
+// Intervalo ocupado na agenda real do implantador (freeBusy do Google).
+export interface Interval {
+  start: string;
+  end: string;
+}
+
 // Opção de horário oferecida ao vendedor (entrar numa sessão ou abrir nova).
 export interface SlotOption {
   startISO: string;
@@ -56,9 +62,40 @@ function bounds(date: string, hm: readonly [string, string]): [Date, Date] {
   return [new Date(`${date}T${hm[0]}:00${OFFSET}`), new Date(`${date}T${hm[1]}:00${OFFSET}`)];
 }
 
+interface Occupied {
+  start: number;
+  end: number;
+}
+
+// Próximo início livre na janela: o primeiro ponto (início da janela ou fim de um
+// intervalo ocupado) em que cabe um bloco de `durMs` sem sobrepor nada ocupado.
+// `occupied` = sessões nossas + agenda real do implantador (freeBusy).
+function nextFreeStart(
+  wStart: Date,
+  wEnd: Date,
+  durMs: number,
+  occupied: Occupied[],
+  now: Date,
+): Date | null {
+  const candidates = [wStart.getTime(), ...occupied.map((o) => o.end)]
+    .filter((t) => t >= wStart.getTime() && t < wEnd.getTime())
+    .sort((a, b) => a - b);
+
+  for (const start of candidates) {
+    if (start <= now.getTime()) continue;
+    const end = start + durMs;
+    if (end > wEnd.getTime()) continue;
+    const clash = occupied.some((o) => start < o.end && o.start < end);
+    if (!clash) return new Date(start);
+  }
+  return null;
+}
+
 // Para um dia: dentro de cada janela, oferece (a) sessões abertas do MESMO
-// produto/tipo com vaga (entrar) e (b) o próximo bloco livre se a duração couber
-// (abrir nova). Sessões empacotam sequencialmente a partir do início da janela.
+// produto/tipo com vaga (entrar) e (b) o próximo bloco livre que caiba (abrir
+// nova), pulando qualquer compromisso real do implantador (`busy`/freeBusy) e as
+// sessões já existentes. Entrar numa sessão nossa do mesmo produto é permitido
+// mesmo o horário aparecendo "ocupado" — o evento é justamente essa sessão.
 export function optionsForDay(
   now: Date,
   date: string,
@@ -67,6 +104,7 @@ export function optionsForDay(
   kind: ImplantationKind,
   capacity: number,
   sessions: ExistingSession[],
+  busy: readonly Interval[] = [],
 ): SlotOption[] {
   const options: SlotOption[] = [];
   const durMs = durationMin * 60 * 1000;
@@ -96,14 +134,16 @@ export function optionsForDay(
       }
     }
 
-    // (b) Abrir nova sessão no próximo bloco livre (após a última sessão).
-    const lastEnd = inWindow.length ? inWindow[inWindow.length - 1]!.end : wStart;
-    const nextStart = lastEnd.getTime() > wStart.getTime() ? lastEnd : wStart;
-    const nextEnd = new Date(nextStart.getTime() + durMs);
-    if (nextEnd.getTime() <= wEnd.getTime() && nextStart.getTime() > now.getTime()) {
+    // (b) Abrir nova sessão: pula sessões existentes E a agenda real do implantador.
+    const occupied: Occupied[] = [
+      ...inWindow.map(({ start, end }) => ({ start: start.getTime(), end: end.getTime() })),
+      ...busy.map((b) => ({ start: new Date(b.start).getTime(), end: new Date(b.end).getTime() })),
+    ];
+    const start = nextFreeStart(wStart, wEnd, durMs, occupied, now);
+    if (start) {
       options.push({
-        startISO: nextStart.toISOString(),
-        endISO: nextEnd.toISOString(),
+        startISO: start.toISOString(),
+        endISO: new Date(start.getTime() + durMs).toISOString(),
         remaining: capacity,
         capacity,
         isNew: true,
