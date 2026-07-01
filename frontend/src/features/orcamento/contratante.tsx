@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { brl, computeOrcamento, type OrcamentoState } from '@/lib/orcamento';
+import { brl } from '@/lib/orcamento';
 import { maskBrPhone } from '@/lib/phone';
 import { cn } from '@/lib/utils';
 import { contratanteSchema, type ContratanteValues } from '@/schemas/orcamento';
@@ -25,17 +25,16 @@ function maskCnpj(v: string): string {
 }
 
 export function Contratante({
-  escopo,
+  total,
   notice,
   onBack,
   onSubmit,
 }: {
-  escopo: OrcamentoState;
+  total: number;
   notice?: string;
   onBack: () => void;
   onSubmit: (values: ContratanteValues) => void;
 }) {
-  const { total } = computeOrcamento(escopo);
   const form = useForm<ContratanteValues>({
     resolver: zodResolver(contratanteSchema),
     mode: 'onTouched',

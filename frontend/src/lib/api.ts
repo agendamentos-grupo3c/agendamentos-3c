@@ -168,6 +168,7 @@ export interface OrcamentoPayload {
   clienteRef?: string;
   crm: string;
   escopo: OrcamentoEscopoPayload;
+  desconto?: { tipo: 'percentual' | 'valor'; valor: number };
   formaPagamento: 'avista' | 'parcelado';
   parcelas?: number;
   descricao?: string;

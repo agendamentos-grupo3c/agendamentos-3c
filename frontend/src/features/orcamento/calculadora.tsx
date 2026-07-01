@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Copy } from 'lucide-react';
+import { AppWindow, ClipboardCheck, ListPlus, PhoneCall, TriangleAlert, type LucideIcon } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -8,16 +8,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useCurrentUser } from '@/features/auth/auth-guard';
 import {
   brl,
   computeOrcamento,
   EMPTY_ORCAMENTO,
   ORCAMENTO_WEIGHTS,
   PILARES,
+  resolveDesconto,
   STEP_DRIVERS,
   tierFor,
+  type Desconto,
+  type DescontoTipo,
   type OrcamentoState,
+  type PilarGroup,
+  type PilarKey,
 } from '@/lib/orcamento';
 import { cn } from '@/lib/utils';
 
@@ -25,7 +29,20 @@ export interface CalculadoraData {
   escopo: OrcamentoState;
   cliente: string;
   descricao: string;
+  desconto: Desconto | null;
 }
+
+const ICONS: Record<PilarKey, LucideIcon> = {
+  mailing: ListPlus,
+  qualif: ClipboardCheck,
+  screenpop: AppWindow,
+  click2call: PhoneCall,
+};
+
+const GROUP_LABEL: Record<PilarGroup, string> = {
+  essenciais: 'Essenciais',
+  complementos: 'Complementos',
+};
 
 export function Calculadora({
   crm,
@@ -36,109 +53,121 @@ export function Calculadora({
   onBack: () => void;
   onContinue: (data: CalculadoraData) => void;
 }) {
-  const user = useCurrentUser();
   const [state, setState] = React.useState<OrcamentoState>(EMPTY_ORCAMENTO);
   const [cliente, setCliente] = React.useState('');
   const [descricao, setDescricao] = React.useState('');
-  const [copied, setCopied] = React.useState(false);
+  const [descMode, setDescMode] = React.useState<DescontoTipo>('percentual');
+  const [descValor, setDescValor] = React.useState(0);
 
-  const { lines, total } = computeOrcamento(state);
+  const { lines, total: subtotal } = computeOrcamento(state);
+  const desconto: Desconto | null = descValor > 0 ? { tipo: descMode, valor: descValor } : null;
+  const desc = resolveDesconto(subtotal, desconto);
 
   const setNum = (key: 'funis' | 'qualifs' | 'sdrs' | 'campos', val: number) =>
     setState((s) => ({ ...s, [key]: val }));
 
-  function buildResumo(): string {
-    const L: string[] = [];
-    L.push(`ORÇAMENTO — ${cliente || '(cliente)'}`);
-    L.push(`Responsável: ${user.name}`);
-    L.push(`CRM: ${crm}`);
-    if (descricao) L.push('', 'DESCRIÇÃO', descricao);
-    L.push('', 'ESCOPO');
-    L.push('• Setup base (kickoff, deploy, testes, dedup)');
-    for (const p of PILARES) if (state.pilares[p.key]) L.push(`• ${p.nome}${p.free ? ' (grátis · nativo 3C)' : ''}`);
-    L.push('', 'DIMENSIONAMENTO');
-    L.push(`• Funis de gatilho: ${state.funis}`);
-    L.push(`• Qualificações mapeadas: ${state.qualifs}`);
-    L.push(`• SDRs / operadores: ${state.sdrs}`);
-    L.push(`• Campos personalizados: ${state.campos}`);
-    L.push(`• URL no retorno: ${state.url ? 'sim' : 'não'}`);
-    L.push('', `VALOR: R$ ${brl(total)},00`);
-    return L.join('\n');
-  }
-
-  async function copyResumo() {
-    try {
-      await navigator.clipboard.writeText(buildResumo());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* clipboard indisponível — ignora silenciosamente */
-    }
+  function renderGroup(group: PilarGroup) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {GROUP_LABEL[group]}
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {PILARES.filter((p) => p.group === group).map((p) => {
+            const Icon = ICONS[p.key];
+            const on = state.pilares[p.key];
+            return (
+              <button
+                key={p.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() =>
+                  setState((s) => ({ ...s, pilares: { ...s.pilares, [p.key]: !s.pilares[p.key] } }))
+                }
+                className={cn(
+                  'flex flex-col gap-2 rounded-2xl border p-4 text-left transition-all',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  on
+                    ? 'border-primary bg-primary/10 ring-1 ring-primary/40'
+                    : 'border-input hover:-translate-y-0.5 hover:border-foreground/30',
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className={cn(
+                      'flex size-9 shrink-0 items-center justify-center rounded-xl',
+                      on ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground',
+                    )}
+                  >
+                    <Icon className="size-[18px]" />
+                  </span>
+                  <span className="text-sm font-semibold leading-tight">{p.nome}</span>
+                </div>
+                <span className="text-xs leading-relaxed text-muted-foreground">{p.benefit}</span>
+                <div className="mt-auto flex items-center justify-between pt-1">
+                  <span
+                    className={cn(
+                      'text-xs font-bold',
+                      p.free ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-300',
+                    )}
+                  >
+                    {p.free ? 'Grátis · nativo 3C' : `+ R$ ${brl(ORCAMENTO_WEIGHTS.pilar[p.key])}`}
+                  </span>
+                  <span
+                    className={cn(
+                      'flex size-5 items-center justify-center rounded-md border',
+                      on ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
+                    )}
+                  >
+                    {on && <Check />}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_340px] lg:items-start">
+    <div className="grid gap-5 lg:grid-cols-[1fr_350px] lg:items-start">
       <div className="space-y-5">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight">
+            O que a 3C vai integrar ao <span className="text-primary">{crm}</span>
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Escolha os serviços conforme o que o cliente precisa. O valor se monta ao lado.
+          </p>
+        </div>
+
         <Card className="rounded-2xl">
-          <CardContent className="space-y-4 pt-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold">Pilares do escopo</h2>
-              <span className="text-xs text-muted-foreground">CRM: {crm}</span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {PILARES.map((p) => {
-                const on = state.pilares[p.key];
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() =>
-                      setState((s) => ({ ...s, pilares: { ...s.pilares, [p.key]: !s.pilares[p.key] } }))
-                    }
-                    className={cn(
-                      'flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition-all',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      on
-                        ? 'border-primary bg-primary/10 ring-1 ring-primary/40'
-                        : 'border-input hover:border-foreground/30 hover:bg-secondary/50',
-                    )}
-                  >
-                    <span className="text-sm font-medium">{p.nome}</span>
-                    <span className="text-xs text-muted-foreground">{p.desc}</span>
-                    <span
-                      className={cn(
-                        'mt-1 text-xs font-semibold',
-                        p.free ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground',
-                      )}
-                    >
-                      {p.free ? 'Grátis · nativo 3C' : `+ R$ ${brl(ORCAMENTO_WEIGHTS.pilar[p.key])}`}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+          <CardContent className="space-y-5 pt-6">
+            {renderGroup('essenciais')}
+            {renderGroup('complementos')}
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl">
           <CardContent className="space-y-1 pt-6">
-            <h2 className="mb-2 text-base font-semibold">Tamanho da operação</h2>
+            <h3 className="text-base font-semibold">Tamanho da operação</h3>
+            <p className="mb-2 text-xs text-muted-foreground">
+              É aqui que dimensionamos o trabalho: quanto maior a operação, mais mapeamento a integração
+              exige.
+            </p>
             {STEP_DRIVERS.map((d) => {
               const value = state[d.key];
               const tier = d.tiered ? tierFor(value) : null;
               return (
-                <div
-                  key={d.key}
-                  className="flex items-center justify-between gap-3 border-b py-3 last:border-b-0"
-                >
-                  <div className="min-w-0">
+                <div key={d.key} className="flex items-center justify-between gap-3 border-b py-3.5 last:border-b-0">
+                  <div className="min-w-0 max-w-[62%]">
                     <p className="text-sm font-medium">{d.label}</p>
-                    <p className="text-xs text-muted-foreground">{d.hint}</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">{d.hint}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     {tier && tier.add > 0 && (
-                      <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                      <span className="text-xs font-semibold text-amber-600 dark:text-amber-300">
                         +R$ {brl(tier.add)}
                       </span>
                     )}
@@ -147,14 +176,14 @@ export function Calculadora({
                 </div>
               );
             })}
-            <div className="flex items-center justify-between gap-3 py-3">
-              <div className="min-w-0">
+            <div className="flex items-center justify-between gap-3 py-3.5">
+              <div className="min-w-0 max-w-[62%]">
                 <p className="text-sm font-medium">URL no retorno</p>
-                <p className="text-xs text-muted-foreground">link/gravação clicável no card</p>
+                <p className="text-xs text-muted-foreground">Link da gravação clicável direto no card do CRM.</p>
               </div>
               <div className="flex items-center gap-3">
                 {state.url && (
-                  <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-300">
                     +R$ {brl(ORCAMENTO_WEIGHTS.url)}
                   </span>
                 )}
@@ -166,7 +195,7 @@ export function Calculadora({
 
         <Card className="rounded-2xl">
           <CardContent className="space-y-4 pt-6">
-            <h2 className="text-base font-semibold">Identificação</h2>
+            <h3 className="text-base font-semibold">Identificação</h3>
             <div className="space-y-1.5">
               <Label htmlFor="orc-cliente">Cliente / ID 3C</Label>
               <Input
@@ -198,7 +227,7 @@ export function Calculadora({
             </p>
             <p className="mt-1 text-4xl font-bold tracking-tight">
               <span className="align-top text-lg font-semibold text-muted-foreground">R$ </span>
-              {brl(total)}
+              {brl(subtotal)}
             </p>
           </div>
 
@@ -212,19 +241,79 @@ export function Calculadora({
                 )}
               >
                 <span>{l.label}</span>
-                <span className="font-medium tabular-nums">
-                  {l.val === 0 ? 'Grátis' : `R$ ${brl(l.val)}`}
-                </span>
+                <span className="font-medium tabular-nums">{l.val === 0 ? 'Grátis' : `R$ ${brl(l.val)}`}</span>
               </li>
             ))}
           </ul>
 
-          <div className="space-y-2 border-t pt-3">
-            <Button variant="outline" className="w-full" onClick={copyResumo}>
-              {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-              {copied ? 'Copiado!' : 'Copiar resumo'}
-            </Button>
-            <Button className="w-full" onClick={() => onContinue({ escopo: state, cliente, descricao })}>
+          <div className="space-y-2.5 border-t pt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Desconto</span>
+              <div className="flex overflow-hidden rounded-lg border text-xs font-semibold">
+                {(['percentual', 'valor'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => {
+                      setDescMode(m);
+                      setDescValor(0);
+                    }}
+                    className={cn(
+                      'px-3 py-1 transition-colors',
+                      descMode === m ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    {m === 'percentual' ? '%' : 'R$'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                inputMode="numeric"
+                value={descValor === 0 ? '' : String(descValor)}
+                placeholder="0"
+                onChange={(e) => setDescValor(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
+                className={cn('text-right', desc.excedente && 'border-destructive')}
+              />
+              <span className="text-sm font-medium text-muted-foreground">
+                {descMode === 'percentual' ? '%' : 'R$'}
+              </span>
+            </div>
+            {desc.excedente && (
+              <p className="flex items-start gap-1.5 text-xs text-destructive">
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                Desconto acima do permitido para este orçamento. Reduza o valor ou aplique cortesia total.
+              </p>
+            )}
+            {desc.aplicado > 0 && !desc.excedente && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {desc.isFull ? 'Cortesia total' : 'Desconto aplicado'}
+                </span>
+                <span className="font-medium text-green-600 dark:text-green-400">– R$ {brl(desc.aplicado)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-baseline justify-between border-t pt-3">
+            <span className="text-sm font-medium text-muted-foreground">Total</span>
+            <span
+              className={cn(
+                'text-2xl font-bold tabular-nums',
+                desc.isFull ? 'text-green-500' : 'text-foreground',
+              )}
+            >
+              R$ {brl(desc.total)}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <Button
+              className="w-full"
+              disabled={desc.excedente}
+              onClick={() => onContinue({ escopo: state, cliente, descricao, desconto })}
+            >
               Continuar para a proposta
             </Button>
             <Button variant="ghost" className="w-full" onClick={onBack}>
@@ -234,6 +323,21 @@ export function Calculadora({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function Check() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+      <path
+        d="M2 6.3l2.6 2.6L10 3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

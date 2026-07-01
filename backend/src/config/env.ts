@@ -57,6 +57,9 @@ const schema = z.object({
   // Webhook do n8n que gera a proposta no ClickSign + boleto a partir do
   // orçamento de integração (e move o ClickUp/Slack do lado do n8n).
   N8N_CLICKSIGN_WEBHOOK: z.string().url().optional(),
+  // Chave máquina-a-máquina: o n8n usa no header X-Api-Key para chamar
+  // POST /integracao/atribuir (distribuição Alana/Guilherme). Sem ela, a rota 401.
+  INTEGRACAO_API_KEY: z.string().min(16).optional(),
   // HubSpot (implantação): Private App token usado para criar a meeting e
   // atualizar suas observações. Exigido quando a Fase A do HubSpot entrar.
   HUBSPOT_TOKEN: z.string().optional(),

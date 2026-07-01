@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeOrcamento, type OrcamentoEscopo } from '../src/lib/orcamentoPolicy';
+import { computeOrcamento, resolveDesconto, type OrcamentoEscopo } from '../src/lib/orcamentoPolicy';
 
 const base = (over: Partial<OrcamentoEscopo> = {}): OrcamentoEscopo => ({
   pilares: { mailing: false, qualif: false, screenpop: false, click2call: false },
@@ -40,5 +40,33 @@ describe('computeOrcamento', () => {
 
   it('funil incluso não cobra (1 funil = 0 extra)', () => {
     expect(computeOrcamento(base({ funis: 1 })).total).toBe(500);
+  });
+});
+
+describe('resolveDesconto (teto 20% OU cortesia total)', () => {
+  it('sem desconto → total = subtotal', () => {
+    const r = resolveDesconto(1200, undefined);
+    expect(r).toMatchObject({ aplicado: 0, total: 1200, excedente: false, isFull: false });
+  });
+
+  it('percentual no teto (20%) é aceito', () => {
+    const r = resolveDesconto(1200, { tipo: 'percentual', valor: 20 });
+    expect(r).toMatchObject({ aplicado: 240, total: 960, excedente: false });
+  });
+
+  it('percentual acima do teto (e < 100%) é excedente', () => {
+    expect(resolveDesconto(1200, { tipo: 'percentual', valor: 25 }).excedente).toBe(true);
+    expect(resolveDesconto(1200, { tipo: 'valor', valor: 300 }).excedente).toBe(true);
+  });
+
+  it('cortesia total (valor cheio ou 100%) é aceita e zera o total', () => {
+    const rs = resolveDesconto(1200, { tipo: 'valor', valor: 1200 });
+    expect(rs).toMatchObject({ aplicado: 1200, total: 0, isFull: true, excedente: false });
+    const pct = resolveDesconto(1200, { tipo: 'percentual', valor: 100 });
+    expect(pct).toMatchObject({ total: 0, isFull: true, excedente: false });
+  });
+
+  it('valor dentro do teto é aceito', () => {
+    expect(resolveDesconto(1200, { tipo: 'valor', valor: 240 }).excedente).toBe(false);
   });
 });

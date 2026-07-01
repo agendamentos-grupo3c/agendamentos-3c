@@ -58,3 +58,6 @@ services:
       # ClickSign + boleto do orçamento de integração (fluxo n8n de outro setor).
       - key: N8N_CLICKSIGN_WEBHOOK
         sync: false
+      # Chave máquina-a-máquina p/ o n8n chamar POST /integracao/atribuir.
+      - key: INTEGRACAO_API_KEY
+        sync: false

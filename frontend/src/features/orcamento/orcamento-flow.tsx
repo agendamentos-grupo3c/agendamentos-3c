@@ -7,7 +7,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api, type OrcamentoResponse } from '@/lib/api';
-import { brl } from '@/lib/orcamento';
+import { brl, computeOrcamento, resolveDesconto } from '@/lib/orcamento';
 import type { ContratanteValues } from '@/schemas/orcamento';
 
 import { Calculadora, type CalculadoraData } from './calculadora';
@@ -60,6 +60,7 @@ export function OrcamentoFlow() {
             campos: calc.escopo.campos,
             url: calc.escopo.url,
           },
+          desconto: calc.desconto ?? undefined,
           formaPagamento: values.formaPagamento,
           parcelas: values.formaPagamento === 'parcelado' ? values.parcelas : undefined,
           descricao: calc.descricao || undefined,
@@ -112,9 +113,10 @@ export function OrcamentoFlow() {
   }
 
   if (step === 'contratante' && calc) {
+    const totalLiquido = resolveDesconto(computeOrcamento(calc.escopo).total, calc.desconto).total;
     return (
       <Contratante
-        escopo={calc.escopo}
+        total={totalLiquido}
         notice={notice}
         onBack={() => setStep('calculadora')}
         onSubmit={send}

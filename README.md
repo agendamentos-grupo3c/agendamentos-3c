@@ -118,9 +118,12 @@ ramo deste fluxo).
    - cliente só quer **tirar dúvidas** → agenda reunião com a integração (sem custo);
    - **CRM fora da lista** com template → agenda reunião de **viabilidade**;
    - CRM na lista + quer fechar → segue para a **calculadora**.
-2. **Calculadora** — precifica a integração (pilares + dimensionamento). O preço é
+2. **Calculadora** — precifica a integração (serviços + dimensionamento). O preço é
    **sempre recomputado no backend** (`lib/orcamentoPolicy.ts`); o total do front é
    apenas informativo.
+   - **Desconto:** até o teto (`ORCAMENTO.DESCONTO_MAX_PCT`, hoje 20%) **ou** o valor
+     cheio (cortesia total). Entre os dois é recusado (`DESCONTO_EXCEDENTE`). O teto
+     **não** é exibido ao cliente na tela; só aparece um aviso de "excedente".
 3. **Dados da proposta (contratante)** — nome/e-mail/telefone/empresa/CNPJ, IDs
    HubSpot/negócio (opcionais), forma de pagamento e parcelas.
 4. **Envio** — `POST /orcamento` (auth + CSRF + `Idempotency-Key` + rate-limit)
@@ -136,6 +139,35 @@ e a mudança do **ClickUp → "Orçamento enviado"** + aviso no **Slack** aconte
 lado do n8n a partir do webhook. O enriquecimento de CNPJ (Receita Federal) e do
 deal no HubSpot também fica no n8n. Sem `N8N_CLICKSIGN_WEBHOOK` configurada, o envio
 retorna erro tratado (nada externo dispara).
+
+## Distribuição de projetos pagos (Alana / Guilherme)
+
+Quando um orçamento é **assinado e pago**, o n8n (outro setor) chama a nossa API
+para decidir qual integrador fica com o projeto, mantendo os dois **parelhos por
+valor no mês**. A decisão e o estado ficam no nosso backend (tabela
+`integracao_atribuicoes`), auditável e à prova de replay.
+
+- **Regra:** cada projeto pago vai para quem tem o **menor acumulado no mês**
+  (competência `YYYY-MM`, fuso SP). Empate → `alana`. Cortesia (R$0) conta como 0.
+- **Chamar** no momento do pagamento, **antes** de criar o lead no ClickUp.
+
+**Contrato — `POST /integracao/atribuir`** (máquina-a-máquina, sem sessão):
+
+```
+Header:  X-Api-Key: <INTEGRACAO_API_KEY>
+Body:    { "idempotencyKey": "<ref única do orçamento pago>",
+           "valor": 1200,            // líquido pago, R$ inteiros (cortesia = 0)
+           "empresa": "Acme",        // opcional
+           "crm": "Kommo" }          // opcional
+Resp:    { "integrador": "alana",    // ou "guilherme"
+           "competencia": "2026-07",
+           "totais": { "alana": 2000, "guilherme": 2500 },
+           "jaAtribuido": false }    // true em replay (mesma idempotencyKey)
+```
+
+**Idempotência:** a mesma `idempotencyKey` nunca é contabilizada duas vezes — um
+replay devolve a mesma atribuição (`jaAtribuido: true`). Sem `INTEGRACAO_API_KEY`
+configurada, a rota responde **401**.
 
 ## Roadmap (resumo)
 

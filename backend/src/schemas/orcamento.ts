@@ -52,6 +52,10 @@ export const orcamentoSubmitSchema = z
     // Proposta
     crm: z.string().trim().min(1).max(FORM.TEXT_MAX),
     escopo: escopoSchema,
+    // Desconto: % ou R$. A regra (teto OU cortesia total) é validada no service.
+    desconto: z
+      .object({ tipo: z.enum(['percentual', 'valor']), valor: z.number().int().min(0).max(1_000_000) })
+      .optional(),
     formaPagamento: z.enum(['avista', 'parcelado']),
     parcelas: z.number().int().min(1).max(48).optional(),
     descricao: z.string().trim().max(FORM.SUMMARY_MAX).optional(),

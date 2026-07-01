@@ -7,7 +7,9 @@ export interface OrcamentoEnvio {
   empresa: string;
   contratanteEmail: string;
   crm: string;
-  total: number;
+  total: number; // líquido (após desconto)
+  totalBruto: number;
+  descontoAplicado: number;
   formaPagamento: string;
   parcelas: number | null;
   dispatchedAt: string | null;
@@ -22,6 +24,8 @@ const COLUMNS = `
   contratante_email AS "contratanteEmail",
   crm,
   total,
+  total_bruto AS "totalBruto",
+  desconto_aplicado AS "descontoAplicado",
   forma_pagamento AS "formaPagamento",
   parcelas,
   dispatched_at AS "dispatchedAt",
@@ -47,7 +51,10 @@ export interface InsertOrcamentoEnvioInput {
   empresa: string;
   contratanteEmail: string;
   crm: string;
-  total: number;
+  total: number; // líquido
+  totalBruto: number;
+  descontoAplicado: number;
+  descontoTipo: string | null;
   formaPagamento: string;
   parcelas: number | null;
 }
@@ -64,8 +71,9 @@ export async function findByIdempotencyKey(key: string): Promise<OrcamentoEnvio 
 export async function insertEnvio(input: InsertOrcamentoEnvioInput): Promise<OrcamentoEnvio> {
   const { rows } = await query<OrcamentoEnvio>(
     `INSERT INTO orcamento_envios
-       (idempotency_key, actor_email, empresa, contratante_email, crm, total, forma_pagamento, parcelas)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       (idempotency_key, actor_email, empresa, contratante_email, crm, total, total_bruto,
+        desconto_aplicado, desconto_tipo, forma_pagamento, parcelas)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      RETURNING ${COLUMNS}`,
     [
       input.idempotencyKey,
@@ -74,6 +82,9 @@ export async function insertEnvio(input: InsertOrcamentoEnvioInput): Promise<Orc
       input.contratanteEmail,
       input.crm,
       input.total,
+      input.totalBruto,
+      input.descontoAplicado,
+      input.descontoTipo,
       input.formaPagamento,
       input.parcelas,
     ],

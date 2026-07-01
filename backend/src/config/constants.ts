@@ -112,6 +112,13 @@ export const FORM = {
   MEETING_LINK_MAX: 2048,
 } as const;
 
+// Orçamento de integração. Desconto: válido até o teto (% do subtotal) OU o valor
+// cheio (cortesia total). Entre os dois é "excedente" e é recusado. O teto NÃO é
+// exposto ao cliente na tela.
+export const ORCAMENTO = {
+  DESCONTO_MAX_PCT: 20,
+} as const;
+
 // Agendamento (seção 7.4). Slots fixos por colaborador; Alana de manhã,
 // Guilherme à tarde. Horários em America/Sao_Paulo. Tudo configurável aqui.
 export const SCHEDULING = {

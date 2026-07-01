@@ -2,6 +2,8 @@
 // O front envia o escopo; o total é sempre recomputado aqui — nunca confiar no
 // valor vindo do cliente. Espelha frontend/src/lib/orcamento.ts.
 
+import { ORCAMENTO } from '../config/constants.js';
+
 export type PilarKey = 'mailing' | 'qualif' | 'screenpop' | 'click2call';
 
 export interface OrcamentoEscopo {
@@ -27,6 +29,34 @@ export const ORCAMENTO_WEIGHTS = {
   tier1: 200, // 6–15
   tier2: 350, // 16+
 } as const;
+
+export type DescontoTipo = 'percentual' | 'valor';
+
+export interface Desconto {
+  tipo: DescontoTipo;
+  valor: number;
+}
+
+export interface DescontoResult {
+  aplicado: number; // R$ efetivamente descontado
+  total: number; // subtotal - aplicado
+  isFull: boolean; // cortesia total (100%)
+  excedente: boolean; // acima do teto e não é cortesia total → recusar
+}
+
+// Regra de desconto: válido até o teto (% do subtotal) OU o valor cheio (cortesia
+// total). Qualquer coisa entre os dois é "excedente" (recusado).
+export function resolveDesconto(subtotal: number, desconto: Desconto | undefined): DescontoResult {
+  if (!desconto || desconto.valor <= 0 || subtotal <= 0) {
+    return { aplicado: 0, total: subtotal, isFull: false, excedente: false };
+  }
+  const bruto = desconto.tipo === 'percentual' ? Math.round((subtotal * desconto.valor) / 100) : desconto.valor;
+  const aplicado = Math.max(0, Math.min(bruto, subtotal));
+  const cap = Math.round((subtotal * ORCAMENTO.DESCONTO_MAX_PCT) / 100);
+  const isFull = aplicado === subtotal;
+  const excedente = aplicado > cap && !isFull;
+  return { aplicado, total: subtotal - aplicado, isFull, excedente };
+}
 
 export const PILAR_NOMES: Record<PilarKey, string> = {
   mailing: 'Subir lista (mailing sync)',

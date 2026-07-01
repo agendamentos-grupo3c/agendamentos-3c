@@ -1,7 +1,7 @@
 import { AppError } from '../errors/AppError.js';
 import { notifyOrcamentoProposta } from '../integrations/n8n.js';
 import { logger } from '../lib/logger.js';
-import { computeOrcamento, selectedPilarNames } from '../lib/orcamentoPolicy.js';
+import { computeOrcamento, resolveDesconto, selectedPilarNames } from '../lib/orcamentoPolicy.js';
 import { toE164 } from '../lib/phone.js';
 import { insertAuditLog } from '../repositories/auditRepository.js';
 import {
@@ -44,8 +44,16 @@ export async function enviarOrcamento(input: EnviarOrcamentoInput): Promise<Envi
   const { form } = input;
 
   // Preço SEMPRE recomputado no servidor a partir do escopo (nunca confiar no
-  // total vindo do cliente).
-  const { total, lines } = computeOrcamento(form.escopo);
+  // total vindo do cliente). Desconto validado aqui: até o teto OU cortesia total.
+  const { total: subtotal, lines } = computeOrcamento(form.escopo);
+  const desc = resolveDesconto(subtotal, form.desconto);
+  if (desc.excedente) {
+    throw new AppError({
+      code: 'DESCONTO_EXCEDENTE',
+      statusCode: 400,
+      publicMessage: 'Desconto acima do permitido para este orçamento.',
+    });
+  }
   const parcelas = form.formaPagamento === 'parcelado' ? (form.parcelas ?? 1) : 1;
 
   // Idempotência server-side: replay de um envio já despachado retorna o
@@ -62,7 +70,10 @@ export async function enviarOrcamento(input: EnviarOrcamentoInput): Promise<Envi
         empresa: form.empresa,
         contratanteEmail: form.contratanteEmail,
         crm: form.crm,
-        total,
+        total: desc.total, // líquido (após desconto)
+        totalBruto: subtotal,
+        descontoAplicado: desc.aplicado,
+        descontoTipo: form.desconto?.tipo ?? null,
         formaPagamento: form.formaPagamento,
         parcelas: form.formaPagamento === 'parcelado' ? parcelas : null,
       });
@@ -93,6 +104,11 @@ export async function enviarOrcamento(input: EnviarOrcamentoInput): Promise<Envi
     ID_NEGOCIO: form.idNegocio ?? '',
     CLIENTE_REF: form.clienteRef ?? '',
     CRM: form.crm,
+    VALOR_BRUTO: envio.totalBruto,
+    VALOR_BRUTO_FORMATADO: brl2(envio.totalBruto),
+    DESCONTO: envio.descontoAplicado,
+    DESCONTO_FORMATADO: brl2(envio.descontoAplicado),
+    CORTESIA: envio.total === 0,
     VALOR_TOTAL: envio.total,
     VALOR_TOTAL_FORMATADO: brl2(envio.total),
     FORMA_PAGAMENTO: form.formaPagamento === 'parcelado' ? 'Parcelado' : 'À vista',
@@ -138,6 +154,8 @@ export async function enviarOrcamento(input: EnviarOrcamentoInput): Promise<Envi
       empresa: form.empresa,
       contratanteEmail: form.contratanteEmail,
       crm: form.crm,
+      totalBruto: envio.totalBruto,
+      descontoAplicado: envio.descontoAplicado,
       total: envio.total,
       formaPagamento: payload.FORMA_PAGAMENTO,
       parcelas,
